@@ -1,5 +1,6 @@
 /*
  * Copyright 2006 Richard Wilson <info@tinct.net>
+ * Copyright 2008 Sean Fox <dyntryx@gmail.com>
  *
  * This file is part of NetSurf, http://www.netsurf-browser.org/
  *
@@ -24,7 +25,11 @@
 #define _NETSURF_IMAGE_BMPREAD_H_
 
 #include <stdbool.h>
-#include "image/bitmap.h"
+
+/* bmp flags */
+#define BMP_NEW		0
+#define BMP_OPAQUE		(1 << 0)	/** image is opaque */
+#define BMP_CLEAR_MEMORY	(1 << 1)	/** memory should be wiped */
 
 /* error return values */
 typedef enum {
@@ -42,6 +47,25 @@ typedef enum {
   	BMP_ENCODING_BITFIELDS = 3
 } bmp_encoding;
 
+/*	API for Bitmap callbacks
+*/
+typedef void* (*bitmap_cb_create)(int width, int height, unsigned int state);
+typedef void (*bitmap_cb_destroy)(void *bitmap);
+typedef void (*bitmap_cb_set_suspendable)(void *bitmap, void *private_word,
+		void (*invalidate)(void *bitmap, void *private_word));
+typedef char* (*bitmap_cb_get_buffer)(void *bitmap);
+typedef size_t (*bitmap_cb_get_rowstride)(void *bitmap);
+
+/*	The Bitmap callbacks function table
+*/
+typedef struct bmp_bitmap_callback_vt_s {
+	bitmap_cb_create bitmap_create;			/**< Create a bitmap. */
+	bitmap_cb_destroy bitmap_destroy;			/**< Free a bitmap. */
+	bitmap_cb_set_suspendable bitmap_set_suspendable;	/**< The bitmap image can be suspended. */
+	bitmap_cb_get_buffer bitmap_get_buffer;		/**< Return a pointer to the pixel data in a bitmap. */
+	bitmap_cb_get_rowstride bitmap_get_rowstride;		/**< Find the width of a pixel row in bytes. */
+} bmp_bitmap_callback_vt;
+
 struct bmp_image {
 	unsigned char *bmp_data;	/** pointer to BMP data */
 	unsigned int buffer_size;	/** total number of bytes of BMP data available */
@@ -57,7 +81,7 @@ struct bmp_image {
 	bool ico;			/** image is part of an ICO, mask follows */
 	unsigned int mask[4];		/** four bitwise mask */
 	int shift[4];			/** four bitwise shifts */
-	struct bitmap *bitmap;		/** decoded image */
+	void *bitmap;		/** decoded image */
 };
 
 struct ico_image {
@@ -73,12 +97,12 @@ struct ico_collection {
   	struct ico_image *first;
 };
 
-bmp_result bmp_analyse(struct bmp_image *bmp);
-bmp_result bmp_decode(struct bmp_image *bmp);
-void bmp_finalise(struct bmp_image *bmp);
+bmp_result bmp_analyse(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_decode(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
+void bmp_finalise(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
 
-bmp_result ico_analyse(struct ico_collection *ico);
+bmp_result ico_analyse(struct ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks);
 struct bmp_image *ico_find(struct ico_collection *ico, int width, int height);
-void ico_finalise(struct ico_collection *ico);
+void ico_finalise(struct ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks);
 
 #endif

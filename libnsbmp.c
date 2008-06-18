@@ -1,5 +1,6 @@
 /*
  * Copyright 2006 Richard Wilson <info@tinct.net>
+ * Copyright 2008 Sean Fox <dyntryx@gmail.com>
  *
  * This file is part of NetSurf, http://www.netsurf-browser.org/
  *
@@ -22,21 +23,22 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "image/bmpread.h"
-#include "image/bitmap.h"
+#include "libnsbmp.h"
 #include "utils/log.h"
-#include "utils/config.h"
 
 #define READ_SHORT(a, o) (a[o]|(a[o+1]<<8))
 #define READ_INT(a, o) (a[o]|(a[o+1]<<8)|(a[o+2]<<16)|(a[o+3]<<24))
 
-bmp_result bmp_analyse_header(struct bmp_image *bmp, char *data);
-bmp_result bmp_decode_rgb24(struct bmp_image *bmp, char **start, int bytes);
-bmp_result bmp_decode_rgb16(struct bmp_image *bmp, char **start, int bytes);
-bmp_result bmp_decode_rgb(struct bmp_image *bmp, char **start, int bytes);
-bmp_result bmp_decode_mask(struct bmp_image *bmp, char *data, int bytes);
-bmp_result bmp_decode_rle(struct bmp_image *bmp, char *data, int bytes, int size);
-void bmp_invalidate(struct bitmap *bitmap, void *private_word);
+/* squashes unused variable compiler warnings */
+#define UNUSED(x) ((x)=(x))
+
+bmp_result bmp_analyse_header(struct bmp_image *bmp, char *data, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_decode_rgb24(struct bmp_image *bmp, char **start, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_decode_rgb16(struct bmp_image *bmp, char **start, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_decode_rgb(struct bmp_image *bmp, char **start, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_decode_mask(struct bmp_image *bmp, char *data, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_decode_rle(struct bmp_image *bmp, char *data, int bytes, int size, bmp_bitmap_callback_vt *bitmap_callbacks);
+void bmp_invalidate(void *bitmap, void *private_word);
 
 
 /**
@@ -51,7 +53,7 @@ void bmp_invalidate(struct bitmap *bitmap, void *private_word);
  * \param bmp	the BMP image to analyse
  * \return BMP_OK on success
  */
-bmp_result bmp_analyse(struct bmp_image *bmp) {
+bmp_result bmp_analyse(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *data = (char *) bmp->bmp_data;
 
 	/* ensure we aren't already initialised */
@@ -73,7 +75,7 @@ bmp_result bmp_analyse(struct bmp_image *bmp) {
 	bmp->bitmap_offset = READ_INT(data, 10);
 
 	/* decode the BMP header */
-	return bmp_analyse_header(bmp, data + 14);
+	return bmp_analyse_header(bmp, data + 14, bitmap_callbacks);
 }
 
 
@@ -88,7 +90,7 @@ bmp_result bmp_analyse(struct bmp_image *bmp) {
  * \param ico	the ICO image to analyse
  * \return BMP_OK on success
  */
-bmp_result ico_analyse(struct ico_collection *ico) {
+bmp_result ico_analyse(struct ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *data = (char *) ico->ico_data;
 	unsigned int count, i;
 	bmp_result result;
@@ -129,7 +131,7 @@ bmp_result ico_analyse(struct ico_collection *ico) {
 		image->bmp.ico = true;
 		data += 16;
 		result = bmp_analyse_header(&image->bmp,
-				(char *) image->bmp.bmp_data);
+				(char *) image->bmp.bmp_data, bitmap_callbacks);
 		if (result != BMP_OK)
 			return result;
 		area = image->bmp.width * image->bmp.height;
@@ -143,7 +145,7 @@ bmp_result ico_analyse(struct ico_collection *ico) {
 }
 
 
-bmp_result bmp_analyse_header(struct bmp_image *bmp, char *data) {
+bmp_result bmp_analyse_header(struct bmp_image *bmp, char *data, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	unsigned int header_size;
 	unsigned int i;
 	int width, height, j;
@@ -295,10 +297,10 @@ bmp_result bmp_analyse_header(struct bmp_image *bmp, char *data) {
 	}
 
 	/* create our bitmap */
-	flags = BITMAP_NEW | BITMAP_CLEAR_MEMORY;
+	flags = BMP_NEW | BMP_CLEAR_MEMORY;
 	if ((!bmp->ico) && (bmp->mask[3] == 0))
-		flags |= BITMAP_OPAQUE;
-	bmp->bitmap = bitmap_create(bmp->width, bmp->height, flags);
+		flags |= BMP_OPAQUE;
+	bmp->bitmap = bitmap_callbacks->bitmap_create(bmp->width, bmp->height, flags);
 	if (!bmp->bitmap) {
 		if (bmp->colour_table)
 			free(bmp->colour_table);
@@ -306,7 +308,7 @@ bmp_result bmp_analyse_header(struct bmp_image *bmp, char *data) {
 		return BMP_INSUFFICIENT_MEMORY;
 	}
 	bmp->bitmap_offset = (intptr_t)data - (intptr_t)bmp->bmp_data;
-	bitmap_set_suspendable(bmp->bitmap, bmp, bmp_invalidate);
+	bitmap_callbacks->bitmap_set_suspendable(bmp->bitmap, bmp, bmp_invalidate);
 	return BMP_OK;
 }
 
@@ -349,7 +351,8 @@ struct bmp_image *ico_find(struct ico_collection *ico, int width, int height) {
  *
  * \param bmp	the BMP image to invalidate
  */
-void bmp_invalidate(struct bitmap *bitmap, void *private_word) {
+void bmp_invalidate(void *bitmap, void *private_word) {
+	UNUSED(bitmap);
 	struct bmp_image *bmp = (struct bmp_image *)private_word;
 
 	bmp->decoded = false;
@@ -366,7 +369,7 @@ void bmp_invalidate(struct bitmap *bitmap, void *private_word) {
  * \param bmp	the BMP image to decode
  * \return BMP_OK on success
  */
-bmp_result bmp_decode(struct bmp_image *bmp) {
+bmp_result bmp_decode(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *data;
 	int bytes;
 	bmp_result result = BMP_OK;
@@ -379,23 +382,23 @@ bmp_result bmp_decode(struct bmp_image *bmp) {
 	switch (bmp->encoding) {
 		case BMP_ENCODING_RGB:
 			if (bmp->bpp >= 24)
-				result = bmp_decode_rgb24(bmp, &data, bytes);
+				result = bmp_decode_rgb24(bmp, &data, bytes, bitmap_callbacks);
 			else if (bmp->bpp > 8)
-				result = bmp_decode_rgb16(bmp, &data, bytes);
+				result = bmp_decode_rgb16(bmp, &data, bytes, bitmap_callbacks);
 			else
-				result = bmp_decode_rgb(bmp, &data, bytes);
+				result = bmp_decode_rgb(bmp, &data, bytes, bitmap_callbacks);
 			break;
 		case BMP_ENCODING_RLE8:
-			result = bmp_decode_rle(bmp, data, bytes, 8);
+			result = bmp_decode_rle(bmp, data, bytes, 8, bitmap_callbacks);
 			break;
 		case BMP_ENCODING_RLE4:
-			result = bmp_decode_rle(bmp, data, bytes, 4);
+			result = bmp_decode_rle(bmp, data, bytes, 4, bitmap_callbacks);
 			break;
 		case BMP_ENCODING_BITFIELDS:
 			if (bmp->bpp == 32)
-				result = bmp_decode_rgb24(bmp, &data, bytes);
+				result = bmp_decode_rgb24(bmp, &data, bytes, bitmap_callbacks);
 			else if (bmp->bpp == 16)
-				result = bmp_decode_rgb16(bmp, &data, bytes);
+				result = bmp_decode_rgb16(bmp, &data, bytes, bitmap_callbacks);
 			else
 				return BMP_DATA_ERROR;
 	}
@@ -404,7 +407,7 @@ bmp_result bmp_decode(struct bmp_image *bmp) {
 		return result;
 
 	bytes = (intptr_t)bmp->bmp_data + bmp->buffer_size - (intptr_t)data;
-	return bmp_decode_mask(bmp, data, bytes);
+	return bmp_decode_mask(bmp, data, bytes, bitmap_callbacks);
 }
 
 
@@ -416,7 +419,7 @@ bmp_result bmp_decode(struct bmp_image *bmp) {
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rgb24(struct bmp_image *bmp, char **start, int bytes) {
+bmp_result bmp_decode_rgb24(struct bmp_image *bmp, char **start, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *top, *bottom, *end, *data;
 	unsigned int *scanline;
 	unsigned int x, y, swidth, skip;
@@ -424,8 +427,8 @@ bmp_result bmp_decode_rgb24(struct bmp_image *bmp, char **start, int bytes) {
 	unsigned int i, word;
 
 	data = *start;
-	swidth = bitmap_get_rowstride(bmp->bitmap);
-	top = bitmap_get_buffer(bmp->bitmap);
+	swidth = bitmap_callbacks->bitmap_get_rowstride(bmp->bitmap);
+	top = bitmap_callbacks->bitmap_get_buffer(bmp->bitmap);
 	if (!top)
 		return BMP_INSUFFICIENT_MEMORY;
 	bottom = top + swidth * (bmp->height - 1);
@@ -478,7 +481,7 @@ bmp_result bmp_decode_rgb24(struct bmp_image *bmp, char **start, int bytes) {
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rgb16(struct bmp_image *bmp, char **start, int bytes) {
+bmp_result bmp_decode_rgb16(struct bmp_image *bmp, char **start, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *top, *bottom, *end, *data;
 	unsigned int *scanline;
 	unsigned int x, y, swidth;
@@ -486,8 +489,8 @@ bmp_result bmp_decode_rgb16(struct bmp_image *bmp, char **start, int bytes) {
 	unsigned int word, i;
 
 	data = *start;
-	swidth = bitmap_get_rowstride(bmp->bitmap);
-	top = bitmap_get_buffer(bmp->bitmap);
+	swidth = bitmap_callbacks->bitmap_get_rowstride(bmp->bitmap);
+	top = bitmap_callbacks->bitmap_get_buffer(bmp->bitmap);
 	if (!top)
 		return BMP_INSUFFICIENT_MEMORY;
 	bottom = top + swidth * (bmp->height - 1);
@@ -540,7 +543,7 @@ bmp_result bmp_decode_rgb16(struct bmp_image *bmp, char **start, int bytes) {
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rgb(struct bmp_image *bmp, char **start, int bytes) {
+bmp_result bmp_decode_rgb(struct bmp_image *bmp, char **start, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *top, *bottom, *end, *data;
 	unsigned int *scanline;
 	intptr_t addr;
@@ -555,8 +558,8 @@ bmp_result bmp_decode_rgb(struct bmp_image *bmp, char **start, int bytes) {
 	    bit_shifts[i] = 8 - ((i + 1) * bmp->bpp);
 
 	data = *start;
-	swidth = bitmap_get_rowstride(bmp->bitmap);
-	top = bitmap_get_buffer(bmp->bitmap);
+	swidth = bitmap_callbacks->bitmap_get_rowstride(bmp->bitmap);
+	top = bitmap_callbacks->bitmap_get_buffer(bmp->bitmap);
 	if (!top)
 		return BMP_INSUFFICIENT_MEMORY;
 	bottom = top + swidth * (bmp->height - 1);
@@ -596,15 +599,15 @@ bmp_result bmp_decode_rgb(struct bmp_image *bmp, char **start, int bytes) {
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_mask(struct bmp_image *bmp, char *data, int bytes) {
+bmp_result bmp_decode_mask(struct bmp_image *bmp, char *data, int bytes, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *top, *bottom, *end;
 	unsigned int *scanline;
 	intptr_t addr;
 	unsigned int x, y, swidth;
 	int cur_byte = 0;
 
-	swidth = bitmap_get_rowstride(bmp->bitmap);
-	top = bitmap_get_buffer(bmp->bitmap);
+	swidth = bitmap_callbacks->bitmap_get_rowstride(bmp->bitmap);
+	top = bitmap_callbacks->bitmap_get_buffer(bmp->bitmap);
 	if (!top)
 		return BMP_INSUFFICIENT_MEMORY;
 	bottom = top + swidth * (bmp->height - 1);
@@ -638,7 +641,7 @@ bmp_result bmp_decode_mask(struct bmp_image *bmp, char *data, int bytes) {
  * \param size	the size of the RLE tokens (4 or 8)
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rle(struct bmp_image *bmp, char *data, int bytes, int size) {
+bmp_result bmp_decode_rle(struct bmp_image *bmp, char *data, int bytes, int size, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	char *top, *bottom, *end;
 	unsigned int *scanline;
 	unsigned int swidth;
@@ -649,8 +652,8 @@ bmp_result bmp_decode_rle(struct bmp_image *bmp, char *data, int bytes, int size
 	if (bmp->ico)
 		return BMP_DATA_ERROR;
 
-	swidth = bitmap_get_rowstride(bmp->bitmap);
-	top = bitmap_get_buffer(bmp->bitmap);
+	swidth = bitmap_callbacks->bitmap_get_rowstride(bmp->bitmap);
+	top = bitmap_callbacks->bitmap_get_buffer(bmp->bitmap);
 	if (!top)
 		return BMP_INSUFFICIENT_MEMORY;
 	bottom = top + swidth * (bmp->height - 1);
@@ -788,9 +791,9 @@ bmp_result bmp_decode_rle(struct bmp_image *bmp, char *data, int bytes, int size
  *
  * \param bmp	the BMP image to finalise
  */
-void bmp_finalise(struct bmp_image *bmp) {
+void bmp_finalise(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	if (bmp->bitmap)
-		bitmap_destroy(bmp->bitmap);
+		bitmap_callbacks->bitmap_destroy(bmp->bitmap);
 	bmp->bitmap = NULL;
 	if (bmp->colour_table)
 		free(bmp->colour_table);
@@ -803,11 +806,11 @@ void bmp_finalise(struct bmp_image *bmp) {
  *
  * \param ico	the ICO image to finalise
  */
-void ico_finalise(struct ico_collection *ico) {
+void ico_finalise(struct ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	struct ico_image *image;
 
 	for (image = ico->first; image; image = image->next)
-		bmp_finalise(&image->bmp);
+		bmp_finalise(&image->bmp, bitmap_callbacks);
 	while (ico->first) {
 		image = ico->first;
 		ico->first = image->next;
