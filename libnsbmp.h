@@ -49,21 +49,21 @@ typedef enum {
 
 /*	API for Bitmap callbacks
 */
-typedef void* (*bitmap_cb_create)(int width, int height, unsigned int state);
-typedef void (*bitmap_cb_destroy)(void *bitmap);
-typedef void (*bitmap_cb_set_suspendable)(void *bitmap, void *private_word,
+typedef void* (*bmp_bitmap_cb_create)(int width, int height, unsigned int state);
+typedef void (*bmp_bitmap_cb_destroy)(void *bitmap);
+typedef void (*bmp_bitmap_cb_set_suspendable)(void *bitmap, void *private_word,
 		void (*invalidate)(void *bitmap, void *private_word));
-typedef char* (*bitmap_cb_get_buffer)(void *bitmap);
-typedef size_t (*bitmap_cb_get_rowstride)(void *bitmap);
+typedef char* (*bmp_bitmap_cb_get_buffer)(void *bitmap);
+typedef size_t (*bmp_bitmap_cb_get_rowstride)(void *bitmap);
 
 /*	The Bitmap callbacks function table
 */
 typedef struct bmp_bitmap_callback_vt_s {
-	bitmap_cb_create bitmap_create;			/**< Create a bitmap. */
-	bitmap_cb_destroy bitmap_destroy;			/**< Free a bitmap. */
-	bitmap_cb_set_suspendable bitmap_set_suspendable;	/**< The bitmap image can be suspended. */
-	bitmap_cb_get_buffer bitmap_get_buffer;		/**< Return a pointer to the pixel data in a bitmap. */
-	bitmap_cb_get_rowstride bitmap_get_rowstride;		/**< Find the width of a pixel row in bytes. */
+	bmp_bitmap_cb_create bitmap_create;			/**< Create a bitmap. */
+	bmp_bitmap_cb_destroy bitmap_destroy;			/**< Free a bitmap. */
+	bmp_bitmap_cb_set_suspendable bitmap_set_suspendable;	/**< The bitmap image can be suspended. */
+	bmp_bitmap_cb_get_buffer bitmap_get_buffer;		/**< Return a pointer to the pixel data in a bitmap. */
+	bmp_bitmap_cb_get_rowstride bitmap_get_rowstride;		/**< Find the width of a pixel row in bytes. */
 } bmp_bitmap_callback_vt;
 
 struct bmp_image {
