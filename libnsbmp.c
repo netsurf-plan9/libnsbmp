@@ -37,13 +37,14 @@ static inline int read_int(unsigned char *data, unsigned int o) {
 	return ((unsigned char)data[o] | ((unsigned char)data[o+1] << 8) | ((unsigned char)data[o+2] << 16) | ((unsigned char)data[o+3] << 24));
 }
 
-bmp_result bmp_analyse_header(struct bmp_image *bmp, unsigned char *data);
-bmp_result bmp_decode_rgb24(struct bmp_image *bmp, unsigned char **start, int bytes);
-bmp_result bmp_decode_rgb16(struct bmp_image *bmp, unsigned char **start, int bytes);
-bmp_result bmp_decode_rgb(struct bmp_image *bmp, unsigned char **start, int bytes);
-bmp_result bmp_decode_mask(struct bmp_image *bmp, unsigned char *data, int bytes);
-bmp_result bmp_decode_rle(struct bmp_image *bmp, unsigned char *data, int bytes, int size);
-void bmp_invalidate(void *bitmap, void *private_word);
+static bmp_result next_ico_image(ico_collection *ico, ico_image *image);
+static bmp_result bmp_analyse_header(bmp_image *bmp, unsigned char *data);
+static bmp_result bmp_decode_rgb24(bmp_image *bmp, unsigned char **start, int bytes);
+static bmp_result bmp_decode_rgb16(bmp_image *bmp, unsigned char **start, int bytes);
+static bmp_result bmp_decode_rgb(bmp_image *bmp, unsigned char **start, int bytes);
+static bmp_result bmp_decode_mask(bmp_image *bmp, unsigned char *data, int bytes);
+static bmp_result bmp_decode_rle(bmp_image *bmp, unsigned char *data, int bytes, int size);
+static void bmp_invalidate(void *bitmap, void *private_word);
 
 
 
@@ -52,6 +53,14 @@ void bmp_invalidate(void *bitmap, void *private_word);
 void bmp_create(bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks) {
 	memset(bmp, 0, sizeof(bmp_image));
 	bmp->bitmap_callbacks = *bitmap_callbacks;
+}
+
+
+/**	Initialises necessary ico_collection members.
+*/
+void ico_collection_create(ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks) {
+	memset(ico, 0, sizeof(ico_collection));
+	ico->bitmap_callbacks = *bitmap_callbacks;
 }
 
 
@@ -67,12 +76,15 @@ void bmp_create(bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks) {
  * \param bmp	the BMP image to analyse
  * \return BMP_OK on success
  */
-bmp_result bmp_analyse(struct bmp_image *bmp) {
-	unsigned char *data = bmp->bmp_data;
-
+bmp_result bmp_analyse(bmp_image *bmp, size_t size, unsigned char *data) {
 	/* ensure we aren't already initialised */
 	if (bmp->bitmap)
 		return BMP_OK;
+
+	/*	Initialize values
+	*/
+	bmp->buffer_size = size;
+	bmp->bmp_data = data;
 
 	/* standard 14-byte BMP file header is:
 	 *
@@ -104,21 +116,25 @@ bmp_result bmp_analyse(struct bmp_image *bmp) {
  * \param ico	the ICO image to analyse
  * \return BMP_OK on success
  */
-bmp_result ico_analyse(struct ico_collection *ico) {
-	unsigned char *data = ico->ico_data;
+bmp_result ico_analyse(ico_collection *ico, size_t size, unsigned char *data) {
 	unsigned int count, i;
 	bmp_result result;
-	struct ico_image *image;
 	int area, max_area = 0;
 
 	/* ensure we aren't already initialised */
 	if (ico->first)
 		return BMP_OK;
 
-	/* standard 6-byte ICO file header is:
+	/*	Initialize values
+	*/
+	ico->buffer_size = size;
+	ico->ico_data = data;
+
+	/* 6-byte ICO file header is:
 	 *
-	 *	+0	INT	0x00010000
-	 *	+4	SHORT	number of BMPs to follow
+	 *	+0	SHORT	Reserved (should be 0)
+	 *	+2	SHORT	Type (1 for ICO, 2 for CUR)
+	 *	+4	SHORT	Number of BMPs to follow
 	 */
 	if (ico->buffer_size < 6)
 		return BMP_INSUFFICIENT_DATA;
@@ -129,17 +145,39 @@ bmp_result ico_analyse(struct ico_collection *ico) {
 		return BMP_DATA_ERROR;
 	data += 6;
 
-	/* decode the BMP files */
+	/*	Check if we have enough data for the directory
+	 *	6-byte header + 16-byte directory entry for each BMP
+	 */
 	if (ico->buffer_size < 6 + (16 * count))
 		return BMP_INSUFFICIENT_DATA;
+
+	/* Decode the BMP files.
+	 *
+	 * 16-byte ICO directory entry is:
+	 *
+	 *	+0	CHAR	Width (0 for 256 pixels)
+	 *	+1	CHAR	Height (0 for 256 pixels)
+	 *	+2	CHAR	Colour count (0 if more than 256 colours)
+	 *	+3	CHAR	Reserved (should be 0, but may not be)
+	 *	+4	SHORT	Colour Planes (should be 0 or 1)
+	 *	+6	SHORT	Bits Per Pixel
+	 *	+8	INT	Size of the bitmap data in bytes
+	 *	+12	INT	Offset (bitmap data address in file)
+	 */
 	for (i = 0; i < count; i++) {
-		image = calloc(1, sizeof(struct ico_image));
+		ico_image *image;
+		image = calloc(1, sizeof(ico_image));
 		if (!image)
 			return BMP_INSUFFICIENT_MEMORY;
-		image->next = ico->first;
-		ico->first = image;
-		image->bmp.width = data[0];
-		image->bmp.height = data[1];
+		result = next_ico_image(ico, image);
+		if (result != BMP_OK)
+			return result;
+		image->bmp.width = (unsigned int)data[0];
+		if (image->bmp.width == 0)
+			image->bmp.width = 256;
+		image->bmp.height = (unsigned int)data[1];
+		if (image->bmp.height == 0)
+			image->bmp.height = 256;
 		image->bmp.buffer_size = read_int(data, 8) + 40;
 		image->bmp.bmp_data = ico->ico_data + read_int(data, 12);
 		image->bmp.ico = true;
@@ -158,7 +196,23 @@ bmp_result ico_analyse(struct ico_collection *ico) {
 }
 
 
-bmp_result bmp_analyse_header(struct bmp_image *bmp, unsigned char *data) {
+/**
+ * Allocates memory for the next BMP in an ICO collection
+ *
+ * Sets proper structure values
+ *
+ * \param ico		the ICO collection to add the image to
+ * \param image		a pointer to the ICO image to be initialised
+ */
+static bmp_result next_ico_image(ico_collection *ico, ico_image *image) {
+	bmp_create(&image->bmp, &ico->bitmap_callbacks);
+	image->next = ico->first;
+	ico->first = image;
+	return BMP_OK;
+}
+
+
+static bmp_result bmp_analyse_header(bmp_image *bmp, unsigned char *data) {
 	unsigned int header_size;
 	unsigned int i;
 	int width, height, j;
@@ -181,16 +235,18 @@ bmp_result bmp_analyse_header(struct bmp_image *bmp, unsigned char *data) {
 		 *	+8	SHORT	number of color planes (always 1)
 		 *	+10	SHORT	number of bits per pixel
 		 */
-		width = read_short(data, 4);
-		height = read_short(data, 6);
-		if (width < 0)
-			return BMP_DATA_ERROR;
-		if (height < 0) {
-			bmp->reversed = true;
-			height = -height;
+		if (!bmp->ico) {
+			width = read_short(data, 4);
+			height = read_short(data, 6);
+			if (width < 0)
+				return BMP_DATA_ERROR;
+			if (height < 0) {
+				bmp->reversed = true;
+				height = -height;
+			}
+			bmp->width = width;
+			bmp->height = height;
 		}
-		bmp->width = width;
-		bmp->height = height;
 		if (read_short(data, 8) != 1)
 			return BMP_DATA_ERROR;
 		bmp->bpp = read_short(data, 10);
@@ -334,9 +390,9 @@ bmp_result bmp_analyse_header(struct bmp_image *bmp, unsigned char *data) {
  * \param width		the preferred width
  * \param height	the preferred height
  */
-struct bmp_image *ico_find(struct ico_collection *ico, int width, int height) {
-	struct bmp_image *bmp = NULL;
-	struct ico_image *image;
+bmp_image *ico_find(ico_collection *ico, int width, int height) {
+	bmp_image *bmp = NULL;
+	ico_image *image;
 	int x, y, cur, distance = (1 << 24);
 
 	for (image = ico->first; image; image = image->next) {
@@ -362,9 +418,9 @@ struct bmp_image *ico_find(struct ico_collection *ico, int width, int height) {
  *
  * \param bmp	the BMP image to invalidate
  */
-void bmp_invalidate(void *bitmap, void *private_word) {
+static void bmp_invalidate(void *bitmap, void *private_word) {
 	UNUSED(bitmap);
-	struct bmp_image *bmp = (struct bmp_image *)private_word;
+	bmp_image *bmp = (bmp_image *)private_word;
 
 	bmp->decoded = false;
 }
@@ -380,7 +436,7 @@ void bmp_invalidate(void *bitmap, void *private_word) {
  * \param bmp	the BMP image to decode
  * \return BMP_OK on success
  */
-bmp_result bmp_decode(struct bmp_image *bmp) {
+bmp_result bmp_decode(bmp_image *bmp) {
 	unsigned char *data;
 	int bytes;
 	bmp_result result = BMP_OK;
@@ -430,7 +486,7 @@ bmp_result bmp_decode(struct bmp_image *bmp) {
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rgb24(struct bmp_image *bmp, unsigned char **start, int bytes) {
+static bmp_result bmp_decode_rgb24(bmp_image *bmp, unsigned char **start, int bytes) {
 	unsigned char *top, *bottom, *end, *data;
 	unsigned int *scanline;
 	unsigned int x, y, swidth, skip;
@@ -491,7 +547,7 @@ bmp_result bmp_decode_rgb24(struct bmp_image *bmp, unsigned char **start, int by
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rgb16(struct bmp_image *bmp, unsigned char **start, int bytes) {
+static bmp_result bmp_decode_rgb16(bmp_image *bmp, unsigned char **start, int bytes) {
 	unsigned char *top, *bottom, *end, *data;
 	unsigned int *scanline;
 	unsigned int x, y, swidth;
@@ -532,10 +588,11 @@ bmp_result bmp_decode_rgb16(struct bmp_image *bmp, unsigned char **start, int by
 			}
 		} else {
 			for (x = 0; x < bmp->width; x++) {
-				word = data[0] | (data[1] << 8);
+				word = data[0] | (data[1] << 8) | (0xff << 16) | (0xff << 24);
 			  	scanline[x] = ((word & (31 << 0)) << 19) |
 			  			((word & (31 << 5)) << 6) |
-			  			((word & (31 << 10)) >> 7);
+			  			((word & (31 << 10)) >> 7) |
+						(word & (0xff << 24));
 				data += 2;
 			}
 		}
@@ -553,7 +610,7 @@ bmp_result bmp_decode_rgb16(struct bmp_image *bmp, unsigned char **start, int by
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rgb(struct bmp_image *bmp, unsigned char **start, int bytes) {
+static bmp_result bmp_decode_rgb(bmp_image *bmp, unsigned char **start, int bytes) {
 	unsigned char *top, *bottom, *end, *data;
 	unsigned int *scanline;
 	intptr_t addr;
@@ -609,7 +666,7 @@ bmp_result bmp_decode_rgb(struct bmp_image *bmp, unsigned char **start, int byte
  * \param bytes	the number of bytes of data available
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_mask(struct bmp_image *bmp, unsigned char *data, int bytes) {
+static bmp_result bmp_decode_mask(bmp_image *bmp, unsigned char *data, int bytes) {
 	unsigned char *top, *bottom, *end;
 	unsigned int *scanline;
 	intptr_t addr;
@@ -651,7 +708,7 @@ bmp_result bmp_decode_mask(struct bmp_image *bmp, unsigned char *data, int bytes
  * \param size	the size of the RLE tokens (4 or 8)
  * \return BMP_OK on success
  */
-bmp_result bmp_decode_rle(struct bmp_image *bmp, unsigned char *data, int bytes, int size) {
+static bmp_result bmp_decode_rle(bmp_image *bmp, unsigned char *data, int bytes, int size) {
 	unsigned char *top, *bottom, *end;
 	unsigned int *scanline;
 	unsigned int swidth;
@@ -801,7 +858,7 @@ bmp_result bmp_decode_rle(struct bmp_image *bmp, unsigned char *data, int bytes,
  *
  * \param bmp	the BMP image to finalise
  */
-void bmp_finalise(struct bmp_image *bmp) {
+void bmp_finalise(bmp_image *bmp) {
 	if (bmp->bitmap)
 		bmp->bitmap_callbacks.bitmap_destroy(bmp->bitmap);
 	bmp->bitmap = NULL;
@@ -816,8 +873,8 @@ void bmp_finalise(struct bmp_image *bmp) {
  *
  * \param ico	the ICO image to finalise
  */
-void ico_finalise(struct ico_collection *ico) {
-	struct ico_image *image;
+void ico_finalise(ico_collection *ico) {
+	ico_image *image;
 
 	for (image = ico->first; image; image = image->next)
 		bmp_finalise(&image->bmp);

@@ -63,12 +63,8 @@ int main(int argc, char *argv[])
 	/* load file into memory */
 	unsigned char *data = load_file(argv[1], &size);
 
-	/* set our source data */
-	bmp.bmp_data = data;
-	bmp.buffer_size = size;
-
 	/* analyse the BMP */
-	code = bmp_analyse(&bmp);
+	code = bmp_analyse(&bmp, size, data);
 	if (code != BMP_OK) {
 		warning("bmp_analyse", code);
 		exit(1);

@@ -87,28 +87,30 @@ typedef struct bmp_image {
 	int shift[4];					/** four bitwise shifts */
 } bmp_image;
 
-struct ico_image {
-	struct bmp_image bmp;
+typedef struct ico_image {
+	bmp_image bmp;
 	struct ico_image *next;
-};
+} ico_image;
 
-struct ico_collection {
-	unsigned int width;		/** width of largest BMP */
-	unsigned int height;		/** heigth of largest BMP */
+typedef struct ico_collection {
+	bmp_bitmap_callback_vt bitmap_callbacks;	/**< callbacks for bitmap functions */
+	unsigned int width;				/** width of largest BMP */
+	unsigned int height;				/** heigth of largest BMP */
 	/**	Internal members are listed below
 	*/
-	unsigned char *ico_data;	/** pointer to ICO data */
-	unsigned int buffer_size;	/** total number of bytes of ICO data available */
-  	struct ico_image *first;
-};
+	unsigned char *ico_data;			/** pointer to ICO data */
+	unsigned int buffer_size;			/** total number of bytes of ICO data available */
+  	ico_image *first;
+} ico_collection;
 
 void bmp_create(bmp_image *gif, bmp_bitmap_callback_vt *bitmap_callbacks);
-bmp_result bmp_analyse(struct bmp_image *bmp);
-bmp_result bmp_decode(struct bmp_image *bmp);
-void bmp_finalise(struct bmp_image *bmp);
+void ico_collection_create(ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_analyse(bmp_image *bmp, size_t size, unsigned char *data);
+bmp_result bmp_decode(bmp_image *bmp);
+void bmp_finalise(bmp_image *bmp);
 
-bmp_result ico_analyse(struct ico_collection *ico);
-struct bmp_image *ico_find(struct ico_collection *ico, int width, int height);
-void ico_finalise(struct ico_collection *ico);
+bmp_result ico_analyse(ico_collection *ico, size_t size, unsigned char *data);
+bmp_image *ico_find(ico_collection *ico, int width, int height);
+void ico_finalise(ico_collection *ico);
 
 #endif
