@@ -23,7 +23,7 @@ DESTDIR ?=
 
 .PHONY: all clean docs install uninstall
 
-all: libnsbmp.a bin/decode_bmp
+all: libnsbmp.a bin/decode_bmp bin/decode_ico
 	
 libnsbmp.a: libnsbmp.o libnsbmp.pc
 	${AR} ${ARFLAGS} libnsbmp.a libnsbmp.o
@@ -35,6 +35,9 @@ libnsbmp.pc: libnsbmp.pc.in
 	${CC} -c ${CFLAGS} -o $@ $<
 
 bin/decode_bmp: examples/decode_bmp.c libnsbmp.a
+	${CC} ${CFLAGS} -o $@ $< libnsbmp.a
+
+bin/decode_ico: examples/decode_ico.c libnsbmp.a
 	${CC} ${CFLAGS} -o $@ $< libnsbmp.a
 
 docs:
