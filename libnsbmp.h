@@ -53,8 +53,8 @@ typedef void* (*bmp_bitmap_cb_create)(int width, int height, unsigned int state)
 typedef void (*bmp_bitmap_cb_destroy)(void *bitmap);
 typedef void (*bmp_bitmap_cb_set_suspendable)(void *bitmap, void *private_word,
 		void (*invalidate)(void *bitmap, void *private_word));
-typedef char* (*bmp_bitmap_cb_get_buffer)(void *bitmap);
-typedef size_t (*bmp_bitmap_cb_get_rowstride)(void *bitmap);
+typedef unsigned char* (*bmp_bitmap_cb_get_buffer)(void *bitmap);
+typedef size_t (*bmp_bitmap_cb_get_bpp)(void *bitmap);
 
 /*	The Bitmap callbacks function table
 */
@@ -63,10 +63,10 @@ typedef struct bmp_bitmap_callback_vt_s {
 	bmp_bitmap_cb_destroy bitmap_destroy;			/**< Free a bitmap. */
 	bmp_bitmap_cb_set_suspendable bitmap_set_suspendable;	/**< The bitmap image can be suspended. */
 	bmp_bitmap_cb_get_buffer bitmap_get_buffer;		/**< Return a pointer to the pixel data in a bitmap. */
-	bmp_bitmap_cb_get_rowstride bitmap_get_rowstride;		/**< Find the width of a pixel row in bytes. */
+	bmp_bitmap_cb_get_bpp bitmap_get_bpp;	/**< Find the width of a pixel row in bytes. */
 } bmp_bitmap_callback_vt;
 
-struct bmp_image {
+typedef struct bmp_image {
 	unsigned char *bmp_data;	/** pointer to BMP data */
 	unsigned int buffer_size;	/** total number of bytes of BMP data available */
 	unsigned int width;		/** width of BMP (valid after _analyse) */
@@ -81,8 +81,8 @@ struct bmp_image {
 	bool ico;			/** image is part of an ICO, mask follows */
 	unsigned int mask[4];		/** four bitwise mask */
 	int shift[4];			/** four bitwise shifts */
-	void *bitmap;		/** decoded image */
-};
+	void *bitmap;			/** decoded image */
+} bmp_image;
 
 struct ico_image {
 	struct bmp_image bmp;
@@ -97,6 +97,7 @@ struct ico_collection {
   	struct ico_image *first;
 };
 
+void bmp_create(bmp_image *gif);
 bmp_result bmp_analyse(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
 bmp_result bmp_decode(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
 void bmp_finalise(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
