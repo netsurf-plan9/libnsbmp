@@ -63,25 +63,28 @@ typedef struct bmp_bitmap_callback_vt_s {
 	bmp_bitmap_cb_destroy bitmap_destroy;			/**< Free a bitmap. */
 	bmp_bitmap_cb_set_suspendable bitmap_set_suspendable;	/**< The bitmap image can be suspended. */
 	bmp_bitmap_cb_get_buffer bitmap_get_buffer;		/**< Return a pointer to the pixel data in a bitmap. */
-	bmp_bitmap_cb_get_bpp bitmap_get_bpp;	/**< Find the width of a pixel row in bytes. */
+	bmp_bitmap_cb_get_bpp bitmap_get_bpp;			/**< Find the width of a pixel row in bytes. */
 } bmp_bitmap_callback_vt;
 
 typedef struct bmp_image {
-	unsigned char *bmp_data;	/** pointer to BMP data */
-	unsigned int buffer_size;	/** total number of bytes of BMP data available */
-	unsigned int width;		/** width of BMP (valid after _analyse) */
-	unsigned int height;		/** heigth of BMP (valid after _analyse) */
-	bmp_encoding encoding;		/** pixel encoding type */
-	unsigned int bitmap_offset;	/** offset of bitmap data */
-	unsigned int bpp;		/** bits per pixel */
-	unsigned int colours;		/** number of colours */
-	unsigned int *colour_table;	/** colour table */
-	bool reversed;			/** scanlines are top to bottom */
-	bool decoded;			/** whether the image has been decoded */
-	bool ico;			/** image is part of an ICO, mask follows */
-	unsigned int mask[4];		/** four bitwise mask */
-	int shift[4];			/** four bitwise shifts */
-	void *bitmap;			/** decoded image */
+	bmp_bitmap_callback_vt bitmap_callbacks;	/**< callbacks for bitmap functions */
+	unsigned int width;				/** width of BMP (valid after _analyse) */
+	unsigned int height;				/** heigth of BMP (valid after _analyse) */
+	bool decoded;					/** whether the image has been decoded */
+	void *bitmap;					/** decoded image */
+	/**	Internal members are listed below
+	*/
+	unsigned char *bmp_data;			/** pointer to BMP data */
+	unsigned int buffer_size;			/** total number of bytes of BMP data available */
+	bmp_encoding encoding;				/** pixel encoding type */
+	unsigned int bitmap_offset;			/** offset of bitmap data */
+	unsigned int bpp;				/** bits per pixel */
+	unsigned int colours;				/** number of colours */
+	unsigned int *colour_table;			/** colour table */
+	bool reversed;					/** scanlines are top to bottom */
+	bool ico;					/** image is part of an ICO, mask follows */
+	unsigned int mask[4];				/** four bitwise mask */
+	int shift[4];					/** four bitwise shifts */
 } bmp_image;
 
 struct ico_image {
@@ -90,20 +93,22 @@ struct ico_image {
 };
 
 struct ico_collection {
-	unsigned char *ico_data;	/** pointer to ICO data */
-	unsigned int buffer_size;	/** total number of bytes of ICO data available */
 	unsigned int width;		/** width of largest BMP */
 	unsigned int height;		/** heigth of largest BMP */
+	/**	Internal members are listed below
+	*/
+	unsigned char *ico_data;	/** pointer to ICO data */
+	unsigned int buffer_size;	/** total number of bytes of ICO data available */
   	struct ico_image *first;
 };
 
-void bmp_create(bmp_image *gif);
-bmp_result bmp_analyse(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
-bmp_result bmp_decode(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
-void bmp_finalise(struct bmp_image *bmp, bmp_bitmap_callback_vt *bitmap_callbacks);
+void bmp_create(bmp_image *gif, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result bmp_analyse(struct bmp_image *bmp);
+bmp_result bmp_decode(struct bmp_image *bmp);
+void bmp_finalise(struct bmp_image *bmp);
 
-bmp_result ico_analyse(struct ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks);
+bmp_result ico_analyse(struct ico_collection *ico);
 struct bmp_image *ico_find(struct ico_collection *ico, int width, int height);
-void ico_finalise(struct ico_collection *ico, bmp_bitmap_callback_vt *bitmap_callbacks);
+void ico_finalise(struct ico_collection *ico);
 
 #endif

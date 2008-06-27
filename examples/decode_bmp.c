@@ -38,20 +38,16 @@ unsigned char *bitmap_get_buffer(void *bitmap);
 size_t bitmap_get_bpp(void *bitmap);
 void bitmap_destroy(void *bitmap);
 
-/*	The Bitmap callbacks function table;
-	necessary for interaction with nsgiflib.
-*/
-bmp_bitmap_callback_vt bitmap_callbacks = {
-	bitmap_create,
-	bitmap_destroy,
-	bitmap_set_suspendable,
-	bitmap_get_buffer,
-	bitmap_get_bpp
-};
-
 
 int main(int argc, char *argv[])
 {
+	bmp_bitmap_callback_vt bitmap_callbacks = {
+		bitmap_create,
+		bitmap_destroy,
+		bitmap_set_suspendable,
+		bitmap_get_buffer,
+		bitmap_get_bpp
+	};
 	bmp_result code;
 	bmp_image bmp;
 	size_t size;
@@ -62,7 +58,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* create our bmp image */
-	bmp_create(&bmp);
+	bmp_create(&bmp, &bitmap_callbacks);
 
 	/* load file into memory */
 	unsigned char *data = load_file(argv[1], &size);
@@ -72,7 +68,7 @@ int main(int argc, char *argv[])
 	bmp.buffer_size = size;
 
 	/* analyse the BMP */
-	code = bmp_analyse(&bmp, &bitmap_callbacks);
+	code = bmp_analyse(&bmp);
 	if (code != BMP_OK) {
 		warning("bmp_analyse", code);
 		exit(1);
@@ -85,7 +81,7 @@ int main(int argc, char *argv[])
 	printf("%u %u 256\n", bmp.width, bmp.height);
 
 	/* decode the image */
-	code = bmp_decode(&bmp, &bitmap_callbacks);
+	code = bmp_decode(&bmp);
 	if (code != BMP_OK) {
 		warning("bmp_decode", code);
 		exit(1);
@@ -107,7 +103,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* clean up */
-	bmp_finalise(&bmp, &bitmap_callbacks);
+	bmp_finalise(&bmp);
 	free(data);
 
 	return 0;
