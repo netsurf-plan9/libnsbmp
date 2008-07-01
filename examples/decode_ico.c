@@ -21,12 +21,18 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <libnsbmp.h>
 
-#define BITMAP_BYTES_PER_PIXEL 4
+/* Currently the library returns the data in RGBA format,
+ * so there are 4 bytes per pixel */
+#define BYTES_PER_PIXEL 4
+
+/* White with alpha masking. */
+#define TRANSPARENT_COLOR 0xffffffff
 
 unsigned char *load_file(const char *path, size_t *data_size);
 void warning(const char *context, bmp_result code);
@@ -48,15 +54,18 @@ int main(int argc, char *argv[])
 		bitmap_get_buffer,
 		bitmap_get_bpp
 	};
-	bmp_result code;
+	uint16_t width, height;
 	ico_collection ico;
+	bmp_result code;
 	struct bmp_image *bmp;
 	size_t size;
 
-	if (argc != 2) {
-		fprintf(stderr, "Usage: %s collection.ico\n", argv[0]);
+	if ((argc < 2) || (argc > 4)) {
+		fprintf(stderr, "Usage: %s collection.ico [width=255] [height=255]\n", argv[0]);
 		return 1;
 	}
+	width = (argc >= 3) ?  atoi(argv[2]) : 255;
+	height = (argc == 4) ? atoi(argv[3]) : 255;
 
 	/* create our bmp image */
 	ico_collection_create(&ico, &bitmap_callbacks);
@@ -71,34 +80,38 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	/* decode the image */
+	bmp = ico_find(&ico, width, height);
+	assert(bmp);
+
 	printf("P3\n");
 	printf("# %s\n", argv[1]);
-	printf("# width                %u \n", ico.width);
-	printf("# height               %u \n", ico.height);
-	printf("%u %u 256\n", ico.width, ico.height);
+	printf("# width                %u \n", bmp->width);
+	printf("# height               %u \n", bmp->height);
+	printf("%u %u 256\n", bmp->width, bmp->height);
 
-	/* decode the image */
-	bmp = ico_find(&ico, 255, 255);
-	assert(bmp);
-	bmp_decode(bmp);
+	code = bmp_decode(bmp);
+	/* code = bmp_decode_trans(bmp, TRANSPARENT_COLOR); */
+	if (code != BMP_OK) {
+		warning("bmp_decode", code);
+		exit(1);
+	}
 	{
-		unsigned int row, col;
-		unsigned char *image;
-		image = (unsigned char *) bmp->bitmap;
+		uint16_t row, col;
+		uint8_t *image;
+		image = (uint8_t *) bmp->bitmap;
 		for (row = 0; row != bmp->height; row++) {
 			for (col = 0; col != bmp->width; col++) {
-				size_t z = (row * bmp->width + col) * BITMAP_BYTES_PER_PIXEL;
-				printf("%u %u %u ",
-					(unsigned char) image[z],
-					(unsigned char) image[z + 1],
-					(unsigned char) image[z + 2]);
+				size_t z = (row * bmp->width + col) * BYTES_PER_PIXEL;
+				printf("%u %u %u ",	image[z],
+							image[z + 1],
+							image[z + 2]);
 			}
 			printf("\n");
 		}
 	}
 
 	/* clean up */
-	bmp_finalise(bmp);
 	ico_finalise(&ico);
 	free(data);
 
@@ -170,7 +183,7 @@ void warning(const char *context, bmp_result code)
 void *bitmap_create(int width, int height, unsigned int state)
 {
 	(void) state;  /* unused */
-	return calloc(width * height, BITMAP_BYTES_PER_PIXEL);
+	return calloc(width * height, BYTES_PER_PIXEL);
 }
 
 
@@ -200,7 +213,7 @@ unsigned char *bitmap_get_buffer(void *bitmap)
 size_t bitmap_get_bpp(void *bitmap)
 {
 	(void) bitmap;  /* unused */
-	return BITMAP_BYTES_PER_PIXEL;
+	return BYTES_PER_PIXEL;
 }
 
 

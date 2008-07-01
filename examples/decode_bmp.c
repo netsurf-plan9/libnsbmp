@@ -21,12 +21,14 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <libnsbmp.h>
 
-#define BITMAP_BYTES_PER_PIXEL 4
+#define BYTES_PER_PIXEL 4
+#define TRANSPARENT_COLOR 0xffffffff
 
 unsigned char *load_file(const char *path, size_t *data_size);
 void warning(const char *context, bmp_result code);
@@ -78,21 +80,21 @@ int main(int argc, char *argv[])
 
 	/* decode the image */
 	code = bmp_decode(&bmp);
+	/* code = bmp_decode_trans(&bmp, TRANSPARENT_COLOR); */
 	if (code != BMP_OK) {
 		warning("bmp_decode", code);
 		exit(1);
 	}
 	{
-		unsigned int row, col;
-		unsigned char *image;
-		image = (unsigned char *) bmp.bitmap;
+		uint16_t row, col;
+		uint8_t *image;
+		image = (uint8_t *) bmp.bitmap;
 		for (row = 0; row != bmp.height; row++) {
 			for (col = 0; col != bmp.width; col++) {
-				size_t z = (row * bmp.width + col) * BITMAP_BYTES_PER_PIXEL;
-				printf("%u %u %u ",
-					(unsigned char) image[z],
-					(unsigned char) image[z + 1],
-					(unsigned char) image[z + 2]);
+				size_t z = (row * bmp.width + col) * BYTES_PER_PIXEL;
+				printf("%u %u %u ",	image[z],
+							image[z + 1],
+							image[z + 2]);
 			}
 			printf("\n");
 		}
@@ -170,7 +172,7 @@ void warning(const char *context, bmp_result code)
 void *bitmap_create(int width, int height, unsigned int state)
 {
 	(void) state;  /* unused */
-	return calloc(width * height, BITMAP_BYTES_PER_PIXEL);
+	return calloc(width * height, BYTES_PER_PIXEL);
 }
 
 
@@ -200,7 +202,7 @@ unsigned char *bitmap_get_buffer(void *bitmap)
 size_t bitmap_get_bpp(void *bitmap)
 {
 	(void) bitmap;  /* unused */
-	return BITMAP_BYTES_PER_PIXEL;
+	return BYTES_PER_PIXEL;
 }
 
 
