@@ -69,11 +69,11 @@ typedef struct bmp_bitmap_callback_vt_s {
 
 typedef struct bmp_image {
 	bmp_bitmap_callback_vt bitmap_callbacks;	/**< callbacks for bitmap functions */
+	uint8_t *bmp_data;				/** pointer to BMP data */
 	uint16_t width;					/** width of BMP (valid after _analyse) */
 	uint16_t height;				/** heigth of BMP (valid after _analyse) */
 	bool decoded;					/** whether the image has been decoded */
 	void *bitmap;					/** decoded image */
-	uint8_t *bmp_data;				/** pointer to BMP data */
 	/**	Internal members are listed below
 	*/
 	uint32_t buffer_size;				/** total number of bytes of BMP data available */
