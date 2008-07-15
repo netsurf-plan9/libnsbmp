@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <libnsbmp.h>
+#include "../libnsbmp.h"
 
 /* Currently the library returns the data in RGBA format,
  * so there are 4 bytes per pixel */
