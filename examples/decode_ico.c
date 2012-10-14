@@ -27,9 +27,6 @@
 unsigned char *load_file(const char *path, size_t *data_size);
 void warning(const char *context, bmp_result code);
 void *bitmap_create(int width, int height, unsigned int state);
-void bitmap_set_suspendable(void *bitmap, void *private_word,
-		void (*invalidate)(void *bitmap, void *private_word));
-void invalidate(void *bitmap, void *private_word);
 unsigned char *bitmap_get_buffer(void *bitmap);
 size_t bitmap_get_bpp(void *bitmap);
 void bitmap_destroy(void *bitmap);
@@ -40,7 +37,6 @@ int main(int argc, char *argv[])
 	bmp_bitmap_callback_vt bitmap_callbacks = {
 		bitmap_create,
 		bitmap_destroy,
-		bitmap_set_suspendable,
 		bitmap_get_buffer,
 		bitmap_get_bpp
 	};
@@ -182,22 +178,6 @@ void *bitmap_create(int width, int height, unsigned int state)
 {
 	(void) state;  /* unused */
 	return calloc(width * height, BYTES_PER_PIXEL);
-}
-
-
-void bitmap_set_suspendable(void *bitmap, void *private_word,
-			     void (*invalidate)(void *bitmap, void *private_word))
-{
-	(void) bitmap;  /* unused */
-	(void) private_word;  /* unused */
-	(void) invalidate;  /* unused */
-}
-
-
-void invalidate(void *bitmap, void *private_word)
-{
-	(void) bitmap;  /* unused */
-	(void) private_word;  /* unused */
 }
 
 

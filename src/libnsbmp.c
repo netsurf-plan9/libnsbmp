@@ -115,7 +115,6 @@ static bmp_result bmp_decode_rgb16(bmp_image *bmp, uint8_t **start, int bytes);
 static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes);
 static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes);
 static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size);
-static void bmp_invalidate(void *bitmap, void *private_word);
 
 
 
@@ -553,7 +552,6 @@ static bmp_result bmp_analyse_header(bmp_image *bmp, uint8_t *data) {
 	 */
 	if (bmp->ico)
 		bmp->bitmap_offset = (intptr_t)data - (intptr_t)bmp->bmp_data;
-	bmp->bitmap_callbacks.bitmap_set_suspendable(bmp->bitmap, bmp, bmp_invalidate);
 	return BMP_OK;
 }
 
@@ -589,22 +587,6 @@ bmp_image *ico_find(ico_collection *ico, uint16_t width, uint16_t height) {
 		}
 	}
 	return bmp;
-}
-
-
-/**
- * Invalidates a BMP
- *
- * This function sets the BMP into a state such that the bitmap image data
- * can be released from memory.
- *
- * \param bmp	the BMP image to invalidate
- */
-static void bmp_invalidate(void *bitmap, void *private_word) {
-	bmp_image *bmp = (bmp_image *)private_word;
-	UNUSED(bitmap);
-
-	bmp->decoded = false;
 }
 
 

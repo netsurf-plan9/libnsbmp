@@ -43,8 +43,6 @@ typedef enum {
 */
 typedef void* (*bmp_bitmap_cb_create)(int width, int height, unsigned int state);
 typedef void (*bmp_bitmap_cb_destroy)(void *bitmap);
-typedef void (*bmp_bitmap_cb_set_suspendable)(void *bitmap, void *private_word,
-		void (*invalidate)(void *bitmap, void *private_word));
 typedef unsigned char* (*bmp_bitmap_cb_get_buffer)(void *bitmap);
 typedef size_t (*bmp_bitmap_cb_get_bpp)(void *bitmap);
 
@@ -53,7 +51,6 @@ typedef size_t (*bmp_bitmap_cb_get_bpp)(void *bitmap);
 typedef struct bmp_bitmap_callback_vt_s {
 	bmp_bitmap_cb_create bitmap_create;			/**< Create a bitmap. */
 	bmp_bitmap_cb_destroy bitmap_destroy;			/**< Free a bitmap. */
-	bmp_bitmap_cb_set_suspendable bitmap_set_suspendable;	/**< The bitmap image can be suspended. */
 	bmp_bitmap_cb_get_buffer bitmap_get_buffer;		/**< Return a pointer to the pixel data in a bitmap. */
 	bmp_bitmap_cb_get_bpp bitmap_get_bpp;			/**< Find the width of a pixel row in bytes. */
 } bmp_bitmap_callback_vt;
