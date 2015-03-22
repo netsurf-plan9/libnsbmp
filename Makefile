@@ -26,7 +26,7 @@ endif
 
 CFLAGS := -D_BSD_SOURCE -D_DEFAULT_SOURCE \
 	-I$(CURDIR)/include/ -I$(CURDIR)/src \
-	(WARNFLAGS) $(CFLAGS)
+	$(WARNFLAGS) $(CFLAGS)
 ifneq ($(GCCVER),2)
   CFLAGS := $(CFLAGS) -std=c99
 else
