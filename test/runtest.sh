@@ -21,6 +21,6 @@ for BMP in $(ls test/bmpsuite/*.bmp);do
     bmpdecode ${BMP}
 done
 
-#for ICO in $(ls test/icons/*.ico);do
-#    icodecode ${BMP}
-#done
+for ICO in $(ls test/icons/*.ico);do
+    icodecode ${ICO}
+done
