@@ -997,15 +997,16 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 			} else {
 				/* 00 - NN means escape NN pixels */
 				if (bmp->reversed) {
-					pixels_left = (y + 1) * bmp->width - x;
+					pixels_left = (bmp->height - y) * bmp->width - x;
 					scanline = (void *)(top + (y * swidth));
 				} else {
-					pixels_left = (bmp->height - y + 1) * bmp->width - x;
+					pixels_left = (y + 1) * bmp->width - x;
 					scanline = (void *)(bottom - (y * swidth));
 				}
 				if (length > pixels_left)
 					length = pixels_left;
-				if (data + length > end)
+				if ((size == 4 && data + ((length + 1) / 2) > end) ||
+						(size == 8 && data + length > end))
 					return BMP_INSUFFICIENT_DATA;
 
 				/* the following code could be easily optimised by simply
@@ -1047,10 +1048,10 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 		} else {
 			/* NN means perform RLE for NN pixels */
 			if (bmp->reversed) {
-				pixels_left = (y + 1) * bmp->width - x;
+				pixels_left = (bmp->height - y) * bmp->width - x;
 				scanline = (void *)(top + (y * swidth));
 			} else {
-				pixels_left = (bmp->height - y + 1) * bmp->width - x;
+				pixels_left = (y + 1) * bmp->width - x;
 				scanline = (void *)(bottom - (y * swidth));
 			}
 			if (length > pixels_left)
