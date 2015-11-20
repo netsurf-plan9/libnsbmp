@@ -470,7 +470,7 @@ static bmp_result bmp_analyse_header(bmp_image *bmp, uint8_t *data) {
 				break;
 		}
 		/* Bitfield encoding means we have red, green, blue, and alpha masks.
-		 * Here we aquire the masks and determine the required bit shift to
+		 * Here we acquire the masks and determine the required bit shift to
 		 * align them in our 24-bit color 8-bit alpha format.
 		 */
 		if (bmp->encoding == BMP_ENCODING_BITFIELDS) {
