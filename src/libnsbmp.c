@@ -865,8 +865,12 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes) {
 	bmp->decoded = true;
 
 	/* Determine transparent index */
-	if (bmp->limited_trans)
-		bmp->transparent_index = bmp->colour_table[(*data >> bit_shifts[0]) & bit_mask];
+	if (bmp->limited_trans) {
+		uint32_t idx = (*data >> bit_shifts[0]) & bit_mask;
+		if (idx >= bmp->colours)
+			return BMP_DATA_ERROR;
+		bmp->transparent_index = bmp->colour_table[idx];
+	}
 
 	for (y = 0; y < bmp->height; y++) {
 		while (addr != (((intptr_t)data) & 3))
@@ -879,11 +883,15 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes) {
 		else
 			scanline = (void *)(bottom - (y * swidth));
 		for (x = 0; x < bmp->width; x++) {
+			uint32_t idx;
 			if (bit >= ppb) {
 				bit = 0;
 				cur_byte = *data++;
 			}
-			scanline[x] = bmp->colour_table[(cur_byte >> bit_shifts[bit++]) & bit_mask];
+			idx = (cur_byte >> bit_shifts[bit++]) & bit_mask;
+			if (idx >= bmp->colours)
+				return BMP_DATA_ERROR;
+			scanline[x] = bmp->colour_table[idx];
 			if ((bmp->limited_trans) && (scanline[x] == bmp->transparent_index))
 				scanline[x] = bmp->trans_colour;
 		}
@@ -1014,13 +1022,16 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 				 * routines if so */
 				if (size == 8) {
 					for (i = 0; i < length; i++) {
+						uint32_t idx = (uint32_t) *data++;
 						if (x >= bmp->width) {
 							x = 0;
 							if (++y > bmp->height)
 								return BMP_DATA_ERROR;
 							scanline -= bmp->width;
 						}
-						scanline[x++] = bmp->colour_table[(int)*data++];
+						if (idx >= bmp->colours)
+							return BMP_DATA_ERROR;
+						scanline[x++] = bmp->colour_table[idx];
 					}
 				} else {
 					for (i = 0; i < length; i++) {
@@ -1032,9 +1043,13 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 						}
 						if ((i & 1) == 0) {
 							pixel = *data++;
+							if ((pixel >> 4) >= bmp->colours)
+								return BMP_DATA_ERROR;
 							scanline[x++] = bmp->colour_table
 									[pixel >> 4];
 						} else {
+							if ((pixel & 0xf) >= bmp->colours)
+								return BMP_DATA_ERROR;
 							scanline[x++] = bmp->colour_table
 									[pixel & 0xf];
 						}
@@ -1065,7 +1080,10 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 			 * checking the bounds on entry and using some simply copying
 			 * routines if so */
 			if (size == 8) {
-				pixel = bmp->colour_table[(int)*data++];
+				uint32_t idx = (uint32_t) *data++;
+				if (idx >= bmp->colours)
+					return BMP_DATA_ERROR;
+				pixel = bmp->colour_table[idx];
 				for (i = 0; i < length; i++) {
 					if (x >= bmp->width) {
 						x = 0;
@@ -1077,6 +1095,9 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 				}
 			} else {
 				pixel2 = *data++;
+				if ((pixel2 >> 4) >= bmp->colours ||
+						(pixel2 & 0xf) >= bmp->colours)
+					return BMP_DATA_ERROR;
 				pixel = bmp->colour_table[pixel2 >> 4];
 				pixel2 = bmp->colour_table[pixel2 & 0xf];
 				for (i = 0; i < length; i++) {
