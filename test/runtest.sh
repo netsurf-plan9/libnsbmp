@@ -17,10 +17,17 @@ icodecode()
     ${TEST_PATH}/test_decode_ico ${1} > ${TEST_OUT}/${OUTF}.ppm
 }
 
+# standard bitmap suite
 for BMP in $(ls test/bmpsuite/*.bmp);do
     bmpdecode ${BMP}
 done
 
+# test bitmaps
+for ICO in $(ls test/bmp/*.bmp);do
+    bmpdecode ${ICO}
+done
+
+# test icons
 for ICO in $(ls test/icons/*.ico);do
     icodecode ${ICO}
 done
