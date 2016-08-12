@@ -70,6 +70,11 @@ int main(int argc, char *argv[])
 			res = 1;
 			goto cleanup;
 		}
+                /* skip if the decoded image would be ridiculously large */
+                if ((bmp.width * bmp.height) > 2000000) {
+                    res = 1;
+                    goto cleanup;
+                }
 	}
 
 	printf("P3\n");
