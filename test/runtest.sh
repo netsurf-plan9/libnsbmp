@@ -16,8 +16,14 @@ BMPTESTS="test/bmpsuite/*.bmp"
 # netsurf test bitmaps
 BMPTESTS="${BMPTESTS} test/bmp/*.bmp"
 
+# afl bitmap suite
+BMPTESTS="${BMPTESTS} test/afl-bmp/*.bmp"
+
 # icon test directories
 ICOTESTS="test/icons/*.ico"
+
+# afl ico suite
+ICOTESTS="${BMPTESTS} test/afl-ico/*.ico"
 
 bmpdecode()
 {
@@ -65,7 +71,7 @@ ICOTESTERRC=0
 
 # netsurf test icons
 for ICO in $(ls ${ICOTESTS});do
-    ICOTESTTOTC=$((BMPTESTTOTC+1))
+    ICOTESTTOTC=$((ICOTESTTOTC+1))
     icodecode ${ICO}
     ECODE=$?
     if [ "${ECODE}" -gt 128 ];then
