@@ -8,6 +8,8 @@ TEST_LOG=${TEST_PATH}/test.log
 
 mkdir -p ${TEST_OUT}
 
+echo "Bitmap tests" > ${TEST_LOG}
+
 # bitmap test directories
 
 # standard bitmap suite
