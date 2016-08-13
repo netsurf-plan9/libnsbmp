@@ -932,7 +932,8 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 				/* 00 - 00 means end of scanline */
 				x = 0;
 				if (last_y == y) {
-					if (++y > bmp->height)
+                                        y++;
+					if (y >= bmp->height)
 						return BMP_DATA_ERROR;
 				}
 				last_y = y;
@@ -972,7 +973,8 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 						uint32_t idx = (uint32_t) *data++;
 						if (x >= bmp->width) {
 							x = 0;
-							if (++y > bmp->height)
+                                                        y++;
+							if (y >= bmp->height)
 								return BMP_DATA_ERROR;
 							scanline -= bmp->width;
 						}
@@ -984,7 +986,8 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 					for (i = 0; i < length; i++) {
 						if (x >= bmp->width) {
 							x = 0;
-							if (++y > bmp->height)
+                                                        y++;
+							if (y >= bmp->height)
 								return BMP_DATA_ERROR;
 							scanline -= bmp->width;
 						}
@@ -1034,7 +1037,8 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 				for (i = 0; i < length; i++) {
 					if (x >= bmp->width) {
 						x = 0;
-						if (++y > bmp->height)
+                                                y++;
+						if (y >= bmp->height)
 							return BMP_DATA_ERROR;
 						scanline -= bmp->width;
 					}
@@ -1050,7 +1054,8 @@ static bmp_result bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int s
 				for (i = 0; i < length; i++) {
 					if (x >= bmp->width) {
 						x = 0;
-						if (++y > bmp->height)
+                                                y++;
+						if (y >= bmp->height)
 							return BMP_DATA_ERROR;
 						scanline -= bmp->width;
 					}
