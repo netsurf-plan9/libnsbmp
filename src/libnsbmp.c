@@ -485,6 +485,16 @@ static bmp_result bmp_analyse_header(bmp_image *bmp, uint8_t *data) {
 			data += palette_size;
 			bmp->colour_table[i] = read_uint32((uint8_t *)&bmp->colour_table[i],0);
 		}
+
+                /* some bitmaps have a bad offset if there is a pallete, work
+                 * round this by fixing up the data offset to after the palette
+                 * but only if there is data following the palette as some
+                 * bitmaps encode data in the palette!
+                 */
+                if ((bmp->bitmap_offset < (data - bmp->bmp_data)) &&
+                    ((bmp->buffer_size - (data - bmp->bmp_data)) > 0)) {
+                        bmp->bitmap_offset = data - bmp->bmp_data;
+                }
 	}
 
 	/* create our bitmap */
