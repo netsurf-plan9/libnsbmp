@@ -25,7 +25,7 @@ BMPTESTS="${BMPTESTS} test/afl-bmp/*.bmp"
 ICOTESTS="test/icons/*.ico"
 
 # afl ico suite
-ICOTESTS="${BMPTESTS} test/afl-ico/*.ico"
+ICOTESTS="${ICOTESTS} test/afl-ico/*.ico"
 
 bmpdecode()
 {
