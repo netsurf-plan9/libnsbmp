@@ -314,7 +314,7 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                  * but only if there is data following the palette as some
                  * bitmaps encode data in the palette!
                  */
-                if ((bmp->bitmap_offset < (data - bmp->bmp_data)) &&
+                if ((bmp->bitmap_offset < (uint32_t)(data - bmp->bmp_data)) &&
                     ((bmp->buffer_size - (data - bmp->bmp_data)) > 0)) {
                         bmp->bitmap_offset = data - bmp->bmp_data;
                 }
