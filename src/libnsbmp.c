@@ -708,11 +708,14 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes)
                                 cur_byte = *data++;
                         }
                         idx = (cur_byte >> bit_shifts[bit++]) & bit_mask;
-                        if (idx >= bmp->colours)
-                                return BMP_DATA_ERROR;
-                        scanline[x] = bmp->colour_table[idx];
-                        if ((bmp->limited_trans) && (scanline[x] == bmp->transparent_index))
-                                scanline[x] = bmp->trans_colour;
+                        if (idx < bmp->colours) {
+                                /* ensure colour table index is in bounds */
+                                scanline[x] = bmp->colour_table[idx];
+                                if ((bmp->limited_trans) &&
+                                    (scanline[x] == bmp->transparent_index)) {
+                                        scanline[x] = bmp->trans_colour;
+                                }
+                        }
                 }
         }
         *start = data;
