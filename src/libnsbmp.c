@@ -766,18 +766,171 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
 
 
 /**
- * Decode BMP data stored encoded in either RLE4 or RLE8.
+ * Decode BMP data stored encoded in RLE8.
  *
  * \param bmp	the BMP image to decode
  * \param data	the data to decode
  * \param bytes	the number of bytes of data available
- * \param size	the size of the RLE tokens (4 or 8)
  * \return	BMP_OK on success
  *		BMP_INSUFFICIENT_DATA if the bitmap data ends unexpectedly;
  *			in this case, the image may be partially viewable
  */
 static bmp_result
-bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size)
+bmp_decode_rle8(bmp_image *bmp, uint8_t *data, int bytes)
+{
+        uint8_t *top, *bottom, *end;
+        uint32_t *scanline;
+        uint32_t swidth;
+        uint32_t i, length, pixels_left;
+        uint32_t x = 0, y = 0, last_y = 0;
+        uint32_t pixel = 0;
+
+        if (bmp->ico)
+                return BMP_DATA_ERROR;
+
+        swidth = bmp->bitmap_callbacks.bitmap_get_bpp(bmp->bitmap) * bmp->width;
+        top = bmp->bitmap_callbacks.bitmap_get_buffer(bmp->bitmap);
+        if (!top)
+                return BMP_INSUFFICIENT_MEMORY;
+        bottom = top + (uint64_t)swidth * (bmp->height - 1);
+        end = data + bytes;
+        bmp->decoded = true;
+
+        do {
+                if (data + 2 > end)
+                        return BMP_INSUFFICIENT_DATA;
+                length = *data++;
+                if (length == 0) {
+                        length = *data++;
+                        switch (length) {
+                        case 0:
+                                /* 00 - 00 means end of scanline */
+                                x = 0;
+                                if (last_y == y) {
+                                        y++;
+                                        if (y >= bmp->height)
+                                                return BMP_DATA_ERROR;
+                                }
+                                last_y = y;
+                                break;
+
+                        case 1:
+                                /* 00 - 01 means end of RLE data */
+                                return BMP_OK;
+
+                        case 2:
+                                /* 00 - 02 - XX - YY means move cursor */
+                                if (data + 2 > end)
+                                        return BMP_INSUFFICIENT_DATA;
+                                x += *data++;
+                                if (x >= bmp->width)
+                                        return BMP_DATA_ERROR;
+                                y += *data++;
+                                if (y >= bmp->height)
+                                        return BMP_DATA_ERROR;
+                                break;
+
+                        default:
+                                /* 00 - NN means escape NN pixels */
+                                if (bmp->reversed) {
+                                        pixels_left = (bmp->height - y) * bmp->width - x;
+                                        scanline = (void *)(top + (y * swidth));
+                                } else {
+                                        pixels_left = (y + 1) * bmp->width - x;
+                                        scanline = (void *)(bottom - (y * swidth));
+                                }
+                                if (length > pixels_left)
+                                        length = pixels_left;
+                                if (data + length > end)
+                                        return BMP_INSUFFICIENT_DATA;
+
+                                /* the following code could be easily optimised
+                                 * by simply checking the bounds on entry and
+                                 * using some simple copying routines if so
+                                 */
+                                for (i = 0; i < length; i++) {
+                                        uint32_t idx = (uint32_t) *data++;
+                                        if (x >= bmp->width) {
+                                                x = 0;
+                                                y++;
+                                                if (y >= bmp->height)
+                                                        return BMP_DATA_ERROR;
+                                                if (bmp->reversed) {
+                                                        scanline += bmp->width;
+                                                } else {
+                                                        scanline -= bmp->width;
+                                                }
+                                        }
+                                        if (idx >= bmp->colours)
+                                                return BMP_DATA_ERROR;
+                                        scanline[x++] = bmp->colour_table[idx];
+                                }
+
+                                if ((length & 1) && (*data++ != 0x00))
+                                        return BMP_DATA_ERROR;
+
+                                break;
+                        }
+                } else {
+                        uint32_t idx;
+
+                        /* NN means perform RLE for NN pixels */
+                        if (bmp->reversed) {
+                                pixels_left = (bmp->height - y) * bmp->width - x;
+                                scanline = (void *)(top + (y * swidth));
+                        } else {
+                                pixels_left = (y + 1) * bmp->width - x;
+                                scanline = (void *)(bottom - (y * swidth));
+                        }
+                        if (length > pixels_left)
+                                length = pixels_left;
+
+                        /* boundary checking */
+                        if (data + 1 > end)
+                                return BMP_INSUFFICIENT_DATA;
+
+                        /* the following code could be easily optimised by
+                         * simply checking the bounds on entry and using some
+                         * simply copying routines if so
+                         */
+                        idx = (uint32_t) *data++;
+                        if (idx >= bmp->colours)
+                                return BMP_DATA_ERROR;
+
+                        pixel = bmp->colour_table[idx];
+                        for (i = 0; i < length; i++) {
+                                if (x >= bmp->width) {
+                                        x = 0;
+                                        y++;
+                                        if (y >= bmp->height)
+                                                return BMP_DATA_ERROR;
+                                        if (bmp->reversed) {
+                                                scanline += bmp->width;
+                                        } else {
+                                                scanline -= bmp->width;
+                                        }
+                                }
+                                scanline[x++] = pixel;
+                        }
+                }
+        } while (data < end);
+
+        return BMP_OK;
+}
+
+
+/**
+ * Decode BMP data stored encoded in RLE4.
+ *
+ * \param bmp	the BMP image to decode
+ * \param data	the data to decode
+ * \param bytes	the number of bytes of data available
+ * \return	BMP_OK on success
+ *		BMP_INSUFFICIENT_DATA if the bitmap data ends unexpectedly;
+ *			in this case, the image may be partially viewable
+ */
+static bmp_result
+bmp_decode_rle4(bmp_image *bmp, uint8_t *data, int bytes)
 {
         uint8_t *top, *bottom, *end;
         uint32_t *scanline;
@@ -803,7 +956,8 @@ bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size)
                 length = *data++;
                 if (length == 0) {
                         length = *data++;
-                        if (length == 0) {
+                        switch (length) {
+                        case 0:
                                 /* 00 - 00 means end of scanline */
                                 x = 0;
                                 if (last_y == y) {
@@ -812,10 +966,13 @@ bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size)
                                                 return BMP_DATA_ERROR;
                                 }
                                 last_y = y;
-                        } else if (length == 1) {
+                                break;
+
+                        case 1:
                                 /* 00 - 01 means end of RLE data */
                                 return BMP_OK;
-                        } else if (length == 2) {
+
+                        case 2:
                                 /* 00 - 02 - XX - YY means move cursor */
                                 if (data + 2 > end)
                                         return BMP_INSUFFICIENT_DATA;
@@ -825,7 +982,9 @@ bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size)
                                 y += *data++;
                                 if (y >= bmp->height)
                                         return BMP_DATA_ERROR;
-                        } else {
+                                break;
+
+                        default:
                                 /* 00 - NN means escape NN pixels */
                                 if (bmp->reversed) {
                                         pixels_left = (bmp->height - y) * bmp->width - x;
@@ -836,63 +995,46 @@ bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size)
                                 }
                                 if (length > pixels_left)
                                         length = pixels_left;
-                                if ((size == 4 && data + ((length + 1) / 2) > end) ||
-                                    (size == 8 && data + length > end))
+                                if (data + ((length + 1) / 2) > end)
                                         return BMP_INSUFFICIENT_DATA;
 
-                                /* the following code could be easily optimised by simply
-                                 * checking the bounds on entry and using some simply copying
-                                 * routines if so */
-                                if (size == 8) {
-                                        for (i = 0; i < length; i++) {
-                                                uint32_t idx = (uint32_t) *data++;
-                                                if (x >= bmp->width) {
-                                                        x = 0;
-                                                        y++;
-                                                        if (y >= bmp->height)
-                                                                return BMP_DATA_ERROR;
-                                                        if (bmp->reversed) {
-                                                                scanline += bmp->width;
-                                                        } else {
-                                                                scanline -= bmp->width;
-                                                        }
-                                                }
-                                                if (idx >= bmp->colours)
-                                                        return BMP_DATA_ERROR;
-                                                scanline[x++] = bmp->colour_table[idx];
-                                        }
-                                } else {
-                                        for (i = 0; i < length; i++) {
-                                                if (x >= bmp->width) {
-                                                        x = 0;
-                                                        y++;
-                                                        if (y >= bmp->height)
-                                                                return BMP_DATA_ERROR;
-                                                        if (bmp->reversed) {
-                                                                scanline += bmp->width;
-                                                        } else {
-                                                                scanline -= bmp->width;
-                                                        }
+                                /* the following code could be easily optimised
+                                 * by simply checking the bounds on entry and
+                                 * using some simple copying routines
+                                 */
 
-                                                }
-                                                if ((i & 1) == 0) {
-                                                        pixel = *data++;
-                                                        if ((pixel >> 4) >= bmp->colours)
-                                                                return BMP_DATA_ERROR;
-                                                        scanline[x++] = bmp->colour_table
-                                                                        [pixel >> 4];
+                                for (i = 0; i < length; i++) {
+                                        if (x >= bmp->width) {
+                                                x = 0;
+                                                y++;
+                                                if (y >= bmp->height)
+                                                        return BMP_DATA_ERROR;
+                                                if (bmp->reversed) {
+                                                        scanline += bmp->width;
                                                 } else {
-                                                        if ((pixel & 0xf) >= bmp->colours)
-                                                                return BMP_DATA_ERROR;
-                                                        scanline[x++] = bmp->colour_table
-                                                                        [pixel & 0xf];
+                                                        scanline -= bmp->width;
                                                 }
+
                                         }
-                                        length = (length + 1) >> 1;
+                                        if ((i & 1) == 0) {
+                                                pixel = *data++;
+                                                if ((pixel >> 4) >= bmp->colours)
+                                                        return BMP_DATA_ERROR;
+                                                scanline[x++] = bmp->colour_table
+                                                                [pixel >> 4];
+                                        } else {
+                                                if ((pixel & 0xf) >= bmp->colours)
+                                                        return BMP_DATA_ERROR;
+                                                scanline[x++] = bmp->colour_table
+                                                                [pixel & 0xf];
+                                        }
                                 }
+                                length = (length + 1) >> 1;
+
                                 if ((length & 1) && (*data++ != 0x00))
                                         return BMP_DATA_ERROR;
 
+                                break;
                         }
                 } else {
                         /* NN means perform RLE for NN pixels */
@@ -910,55 +1052,38 @@ bmp_decode_rle(bmp_image *bmp, uint8_t *data, int bytes, int size)
                         if (data + 1 > end)
                                 return BMP_INSUFFICIENT_DATA;
 
-                        /* the following code could be easily optimised by simply
-                         * checking the bounds on entry and using some simply copying
-                         * routines if so */
-                        if (size == 8) {
-                                uint32_t idx = (uint32_t) *data++;
-                                if (idx >= bmp->colours)
-                                        return BMP_DATA_ERROR;
-                                pixel = bmp->colour_table[idx];
-                                for (i = 0; i < length; i++) {
-                                        if (x >= bmp->width) {
-                                                x = 0;
-                                                y++;
-                                                if (y >= bmp->height)
-                                                        return BMP_DATA_ERROR;
-                                                if (bmp->reversed) {
-                                                        scanline += bmp->width;
-                                                } else {
-                                                        scanline -= bmp->width;
-                                                }
+                        /* the following code could be easily optimised by
+                         * simply checking the bounds on entry and using some
+                         * simple copying routines
+                         */
+
+                        pixel2 = *data++;
+                        if ((pixel2 >> 4) >= bmp->colours ||
+                            (pixel2 & 0xf) >= bmp->colours)
+                                return BMP_DATA_ERROR;
+                        pixel = bmp->colour_table[pixel2 >> 4];
+                        pixel2 = bmp->colour_table[pixel2 & 0xf];
+                        for (i = 0; i < length; i++) {
+                                if (x >= bmp->width) {
+                                        x = 0;
+                                        y++;
+                                        if (y >= bmp->height)
+                                                return BMP_DATA_ERROR;
+                                        if (bmp->reversed) {
+                                                scanline += bmp->width;
+                                        } else {
+                                                scanline -= bmp->width;
                                         }
+                                }
+                                if ((i & 1) == 0)
                                         scanline[x++] = pixel;
-                                }
-                        } else {
-                                pixel2 = *data++;
-                                if ((pixel2 >> 4) >= bmp->colours ||
-                                    (pixel2 & 0xf) >= bmp->colours)
-                                        return BMP_DATA_ERROR;
-                                pixel = bmp->colour_table[pixel2 >> 4];
-                                pixel2 = bmp->colour_table[pixel2 & 0xf];
-                                for (i = 0; i < length; i++) {
-                                        if (x >= bmp->width) {
-                                                x = 0;
-                                                y++;
-                                                if (y >= bmp->height)
-                                                        return BMP_DATA_ERROR;
-                                                if (bmp->reversed) {
-                                                        scanline += bmp->width;
-                                                } else {
-                                                        scanline -= bmp->width;
-                                                }
-                                        }
-                                        if ((i & 1) == 0)
-                                                scanline[x++] = pixel;
-                                        else
-                                                scanline[x++] = pixel2;
-                                }
+                                else
+                                        scanline[x++] = pixel2;
                         }
+
                 }
         } while (data < end);
+
         return BMP_OK;
 }
 
@@ -1039,26 +1164,32 @@ bmp_result bmp_decode(bmp_image *bmp)
 
         switch (bmp->encoding) {
         case BMP_ENCODING_RGB:
-                if ((bmp->bpp == 24) || (bmp->bpp == 32))
+                if ((bmp->bpp == 24) || (bmp->bpp == 32)) {
                         result = bmp_decode_rgb24(bmp, &data, bytes);
-                else if (bmp->bpp == 16)
+                } else if (bmp->bpp == 16) {
                         result = bmp_decode_rgb16(bmp, &data, bytes);
-                else
+                } else {
                         result = bmp_decode_rgb(bmp, &data, bytes);
+                }
                 break;
+
         case BMP_ENCODING_RLE8:
-                result = bmp_decode_rle(bmp, data, bytes, 8);
+                result = bmp_decode_rle8(bmp, data, bytes);
                 break;
+
         case BMP_ENCODING_RLE4:
-                result = bmp_decode_rle(bmp, data, bytes, 4);
+                result = bmp_decode_rle4(bmp, data, bytes);
                 break;
+
         case BMP_ENCODING_BITFIELDS:
-                if (bmp->bpp == 32)
+                if (bmp->bpp == 32) {
                         result = bmp_decode_rgb24(bmp, &data, bytes);
-                else if (bmp->bpp == 16)
+                } else if (bmp->bpp == 16) {
                         result = bmp_decode_rgb16(bmp, &data, bytes);
-                else
-                        return BMP_DATA_ERROR;
+                } else {
+                        result = BMP_DATA_ERROR;
+                }
+                break;
         }
 
         if ((!bmp->ico) || (result != BMP_OK))
