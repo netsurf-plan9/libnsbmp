@@ -818,11 +818,6 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
         uint32_t x, y, swidth;
         uint32_t cur_byte = 0;
 
-        if (bmp->bpp == 32) {
-                /* should already have proper alpha */
-                return BMP_OK;
-        }
-
         swidth = bmp->bitmap_callbacks.bitmap_get_bpp(bmp->bitmap) * bmp->width;
         top = bmp->bitmap_callbacks.bitmap_get_buffer(bmp->bitmap);
         if (!top)
@@ -840,11 +835,13 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
                 for (x = 0; x < bmp->width; x++) {
                         if ((x & 7) == 0)
                                 cur_byte = *data++;
+                        scanline[x] = read_uint32((uint8_t *)&scanline[x], 0);
                         if ((cur_byte & 128) == 0) {
-                                scanline[x] = read_uint32((uint8_t *)&scanline[x], 0);
                                 scanline[x] |= (0xff << 24);
-                                scanline[x] = read_uint32((uint8_t *)&scanline[x], 0);
+                        } else {
+                                scanline[x] &= 0xffffff;
                         }
+                        scanline[x] = read_uint32((uint8_t *)&scanline[x], 0);
                         cur_byte = cur_byte << 1;
                 }
         }
@@ -1295,11 +1292,12 @@ bmp_result bmp_decode(bmp_image *bmp)
                 break;
         }
 
-        if ((!bmp->ico) || (result != BMP_OK))
-                return result;
-
-        bytes = (uintptr_t)bmp->bmp_data + bmp->buffer_size - (uintptr_t)data;
-        return bmp_decode_mask(bmp, data, bytes);
+        /* icons with less than 32bpp have a 1bpp alpha mask */
+        if ((result == BMP_OK) && (bmp->ico) && (bmp->bpp != 32)) {
+                bytes = (uintptr_t)bmp->bmp_data + bmp->buffer_size - (uintptr_t)data;
+                result = bmp_decode_mask(bmp, data, bytes);
+        }
+        return result;
 }
 
 
