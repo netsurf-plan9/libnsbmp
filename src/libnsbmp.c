@@ -555,6 +555,8 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
                                 }
                                 if (bmp->opaque) {
                                         scanline[x] |= (0xff << 24);
+                                } else {
+                                        scanline[x] |= data[3] << 24;
                                 }
                                 data += 4;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
@@ -815,6 +817,11 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
         intptr_t addr;
         uint32_t x, y, swidth;
         uint32_t cur_byte = 0;
+
+        if (bmp->bpp == 32) {
+                /* should already have proper alpha */
+                return BMP_OK;
+        }
 
         swidth = bmp->bitmap_callbacks.bitmap_get_bpp(bmp->bitmap) * bmp->width;
         top = bmp->bitmap_callbacks.bitmap_get_buffer(bmp->bitmap);
