@@ -483,7 +483,7 @@ static bmp_result ico_header_parse(ico_collection *ico, uint8_t *data)
 
 
 /**
- * Decode BMP data stored in 24bpp colour.
+ * Decode BMP data stored in 32bpp colour.
  *
  * \param bmp	the BMP image to decode
  * \param start	the data to decode, updated to last byte read on success
@@ -492,15 +492,17 @@ static bmp_result ico_header_parse(ico_collection *ico, uint8_t *data)
  *		BMP_INSUFFICIENT_DATA if the bitmap data ends unexpectedly;
  *			in this case, the image may be partially viewable
  */
-static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
+static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
 {
         uint8_t *top, *bottom, *end, *data;
         uint32_t *scanline;
         uint32_t x, y;
-        uint32_t swidth, skip;
+        uint32_t swidth;
         intptr_t addr;
         uint8_t i;
         uint32_t word;
+
+        assert(bmp->bpp == 32);
 
         data = *start;
         swidth = bmp->bitmap_callbacks.bitmap_get_bpp(bmp->bitmap) * bmp->width;
@@ -510,12 +512,11 @@ static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
         bottom = top + (uint64_t)swidth * (bmp->height - 1);
         end = data + bytes;
         addr = ((intptr_t)data) & 3;
-        skip = bmp->bpp >> 3;
         bmp->decoded = true;
 
         /* Determine transparent index */
         if (bmp->limited_trans) {
-                if ((data + skip) > end)
+                if ((data + 4) > end)
                         return BMP_INSUFFICIENT_DATA;
                 if (bmp->encoding == BMP_ENCODING_BITFIELDS)
                         bmp->transparent_index = read_uint32(data, 0);
@@ -526,7 +527,7 @@ static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
         for (y = 0; y < bmp->height; y++) {
                 while (addr != (((intptr_t)data) & 3))
                         data++;
-                if ((data + (skip * bmp->width)) > end)
+                if ((data + (4 * bmp->width)) > end)
                         return BMP_INSUFFICIENT_DATA;
                 if (bmp->reversed)
                         scanline = (void *)(top + (y * swidth));
@@ -543,20 +544,96 @@ static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
                                 /* 32-bit BMPs have alpha masks, but sometimes they're not utilized */
                                 if (bmp->opaque)
                                         scanline[x] |= (0xff << 24);
-                                data += skip;
+                                data += 4;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
                 } else {
                         for (x = 0; x < bmp->width; x++) {
                                 scanline[x] = data[2] | (data[1] << 8) | (data[0] << 16);
-                                if ((bmp->limited_trans) && (scanline[x] == bmp->transparent_index))
+                                if ((bmp->limited_trans) && (scanline[x] == bmp->transparent_index)) {
                                         scanline[x] = bmp->trans_colour;
-                                if (bmp->opaque)
+                                }
+                                if (bmp->opaque) {
                                         scanline[x] |= (0xff << 24);
-                                data += skip;
+                                }
+                                data += 4;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
                 }
+        }
+        *start = data;
+        return BMP_OK;
+}
+
+
+/**
+ * Decode BMP data stored in 24bpp colour.
+ *
+ * \param bmp	the BMP image to decode
+ * \param start	the data to decode, updated to last byte read on success
+ * \param bytes	the number of bytes of data available
+ * \return	BMP_OK on success
+ *		BMP_INSUFFICIENT_DATA if the bitmap data ends unexpectedly;
+ *			in this case, the image may be partially viewable
+ */
+static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
+{
+        uint8_t *top, *bottom, *end, *data;
+        uint32_t *scanline;
+        uint32_t x, y;
+        uint32_t swidth;
+        intptr_t addr;
+
+        assert(bmp->encoding == BMP_ENCODING_RGB);
+        assert(bmp->bpp == 24);
+
+        data = *start;
+        swidth = bmp->bitmap_callbacks.bitmap_get_bpp(bmp->bitmap) * bmp->width;
+        top = bmp->bitmap_callbacks.bitmap_get_buffer(bmp->bitmap);
+        if (!top) {
+                return BMP_INSUFFICIENT_MEMORY;
+        }
+
+        bottom = top + (uint64_t)swidth * (bmp->height - 1);
+        end = data + bytes;
+        addr = ((intptr_t)data) & 3;
+        bmp->decoded = true;
+
+        /* Determine transparent index */
+        if (bmp->limited_trans) {
+                if ((data + 3) > end) {
+                        return BMP_INSUFFICIENT_DATA;
+                }
+
+                bmp->transparent_index = data[2] | (data[1] << 8) | (data[0] << 16);
+        }
+
+        for (y = 0; y < bmp->height; y++) {
+                while (addr != (((intptr_t)data) & 3)) {
+                        data++;
+                }
+
+                if ((data + (3 * bmp->width)) > end) {
+                        return BMP_INSUFFICIENT_DATA;
+                }
+
+                if (bmp->reversed) {
+                        scanline = (void *)(top + (y * swidth));
+                } else {
+                        scanline = (void *)(bottom - (y * swidth));
+                }
+
+                for (x = 0; x < bmp->width; x++) {
+                        scanline[x] = data[2] | (data[1] << 8) | (data[0] << 16);
+                        if ((bmp->limited_trans) && (scanline[x] == bmp->transparent_index)) {
+                                scanline[x] = bmp->trans_colour;
+                        } else {
+                                scanline[x] |= (0xff << 24);
+                        }
+                        data += 3;
+                        scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
+                }
+
         }
         *start = data;
         return BMP_OK;
@@ -1167,12 +1244,22 @@ bmp_result bmp_decode(bmp_image *bmp)
 
         switch (bmp->encoding) {
         case BMP_ENCODING_RGB:
-                if ((bmp->bpp == 24) || (bmp->bpp == 32)) {
+                switch (bmp->bpp) {
+                case 32:
+                        result = bmp_decode_rgb32(bmp, &data, bytes);
+                        break;
+
+                case 24:
                         result = bmp_decode_rgb24(bmp, &data, bytes);
-                } else if (bmp->bpp == 16) {
+                        break;
+
+                case 16:
                         result = bmp_decode_rgb16(bmp, &data, bytes);
-                } else {
+                        break;
+
+                default:
                         result = bmp_decode_rgb(bmp, &data, bytes);
+                        break;
                 }
                 break;
 
@@ -1185,12 +1272,18 @@ bmp_result bmp_decode(bmp_image *bmp)
                 break;
 
         case BMP_ENCODING_BITFIELDS:
-                if (bmp->bpp == 32) {
-                        result = bmp_decode_rgb24(bmp, &data, bytes);
-                } else if (bmp->bpp == 16) {
+                switch (bmp->bpp) {
+                case 32:
+                        result = bmp_decode_rgb32(bmp, &data, bytes);
+                        break;
+
+                case 16:
                         result = bmp_decode_rgb16(bmp, &data, bytes);
-                } else {
+                        break;
+
+                default:
                         result = BMP_DATA_ERROR;
+                        break;
                 }
                 break;
         }
