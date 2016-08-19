@@ -40,8 +40,15 @@ bmpdecode()
 icodecode()
 {
     OUTF=$(basename ${1} .ico)
+    CMPF=$(dirname  ${1})/${OUTF}.ppm
     echo "Icon:${1}" >> ${TEST_LOG}
     ${TEST_PATH}/test_decode_ico ${1} > ${TEST_OUT}/${OUTF}.ppm 2>> ${TEST_LOG}
+    if [ -f "${CMPF}" ]; then
+	cmp ${CMPF} ${TEST_OUT}/${OUTF}.ppm >> ${TEST_LOG} 2>> ${TEST_LOG}
+	if [ "$?" -ne 0 ]; then
+	    return 128
+	fi
+    fi
 }
 
 # bitmap tests
@@ -54,7 +61,7 @@ for BMP in $(ls ${BMPTESTS});do
     BMPTESTTOTC=$((BMPTESTTOTC+1))
     bmpdecode ${BMP}
     ECODE=$?
-    if [ "${ECODE}" -gt 128 ];then
+    if [ "${ECODE}" -gt 127 ];then
 	BMPTESTERRC=$((BMPTESTERRC+1))
     else
 	BMPTESTPASSC=$((BMPTESTPASSC+1))
@@ -76,7 +83,7 @@ for ICO in $(ls ${ICOTESTS});do
     ICOTESTTOTC=$((ICOTESTTOTC+1))
     icodecode ${ICO}
     ECODE=$?
-    if [ "${ECODE}" -gt 128 ];then
+    if [ "${ECODE}" -gt 127 ];then
 	ICOTESTERRC=$((ICOTESTERRC+1))
     else
 	ICOTESTPASSC=$((ICOTESTPASSC+1))
