@@ -26,7 +26,7 @@ static void *bitmap_create(int width, int height, unsigned int state)
 {
         (void) state;  /* unused */
         /* ensure a stupidly large (>50Megs or so) bitmap is not created */
-        if ((width * height) > (MAX_IMAGE_BYTES/BYTES_PER_PIXEL)) {
+        if (((long long)width * (long long)height) > (MAX_IMAGE_BYTES/BYTES_PER_PIXEL)) {
                 return NULL;
         }
         return calloc(width * height, BYTES_PER_PIXEL);
