@@ -27,6 +27,29 @@ unsigned char *bitmap_get_buffer(void *bitmap);
 size_t bitmap_get_bpp(void *bitmap);
 void bitmap_destroy(void *bitmap);
 
+static void write_ppm(FILE* fh, const char *name, struct bmp_image *bmp)
+{
+        uint16_t row, col;
+        uint8_t *image;
+
+        fprintf(fh, "P3\n");
+        fprintf(fh, "# %s\n", name);
+        fprintf(fh, "# width                %u \n", bmp->width);
+        fprintf(fh, "# height               %u \n", bmp->height);
+        fprintf(fh, "%u %u 256\n", bmp->width, bmp->height);
+
+        image = (uint8_t *) bmp->bitmap;
+        for (row = 0; row != bmp->height; row++) {
+                for (col = 0; col != bmp->width; col++) {
+                        size_t z = (row * bmp->width + col) * BYTES_PER_PIXEL;
+                        fprintf(fh, "%u %u %u ",
+                                image[z],
+                                image[z + 1],
+                                image[z + 2]);
+                }
+                fprintf(fh, "\n");
+        }
+}
 
 int main(int argc, char *argv[])
 {
@@ -40,10 +63,19 @@ int main(int argc, char *argv[])
         bmp_image bmp;
         size_t size;
         unsigned short res = 0;
+        FILE *outf = stdout;
 
-        if (argc != 2) {
-                fprintf(stderr, "Usage: %s image.bmp\n", argv[0]);
+        if (argc < 2) {
+                fprintf(stderr, "Usage: %s image.bmp [out]\n", argv[0]);
                 return 1;
+        }
+
+        if (argc > 2) {
+                outf = fopen(argv[2], "w+");
+                if (outf == NULL) {
+                        fprintf(stderr, "Unable to open %s for writing\n", argv[2]);
+                        return 2;
+                }
         }
 
         /* create our bmp image */
@@ -56,7 +88,7 @@ int main(int argc, char *argv[])
         code = bmp_analyse(&bmp, size, data);
         if (code != BMP_OK) {
                 warning("bmp_analyse", code);
-                res = 1;
+                res = 3;
                 goto cleanup;
         }
 
@@ -68,36 +100,21 @@ int main(int argc, char *argv[])
                 /* allow partially decoded images */
                 if ((code != BMP_INSUFFICIENT_DATA) &&
                     (code != BMP_DATA_ERROR)) {
-                        res = 1;
+                        res = 4;
                         goto cleanup;
                 }
 
                 /* skip if the decoded image would be ridiculously large */
                 if ((bmp.width * bmp.height) > 200000) {
-                        res = 1;
+                        res = 5;
                         goto cleanup;
                 }
         }
 
-        printf("P3\n");
-        printf("# %s\n", argv[1]);
-        printf("# width                %u \n", bmp.width);
-        printf("# height               %u \n", bmp.height);
-        printf("%u %u 256\n", bmp.width, bmp.height);
+        write_ppm(outf, argv[1], &bmp);
 
-        {
-                uint16_t row, col;
-                uint8_t *image;
-                image = (uint8_t *) bmp.bitmap;
-                for (row = 0; row != bmp.height; row++) {
-                        for (col = 0; col != bmp.width; col++) {
-                                size_t z = (row * bmp.width + col) * BYTES_PER_PIXEL;
-                                printf("%u %u %u ",	image[z],
-                                       image[z + 1],
-                                       image[z + 2]);
-                        }
-                        printf("\n");
-                }
+        if (argc > 2) {
+                fclose(outf);
         }
 
 cleanup:
