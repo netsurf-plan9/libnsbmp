@@ -529,8 +529,6 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
         }
 
         for (y = 0; y < bmp->height; y++) {
-                while (addr != (((intptr_t)data) & 3))
-                        data++;
                 if ((data + (4 * bmp->width)) > end)
                         return BMP_INSUFFICIENT_DATA;
                 if (bmp->reversed)
@@ -566,6 +564,8 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
                 }
+                while (addr != (((intptr_t)data) & 3))
+                        data++;
         }
         *start = data;
         return BMP_OK;
@@ -615,10 +615,6 @@ static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
         }
 
         for (y = 0; y < bmp->height; y++) {
-                while (addr != (((intptr_t)data) & 3)) {
-                        data++;
-                }
-
                 if ((data + (3 * bmp->width)) > end) {
                         return BMP_INSUFFICIENT_DATA;
                 }
@@ -640,6 +636,9 @@ static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
                         scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                 }
 
+                while (addr != (((intptr_t)data) & 3)) {
+                        data++;
+                }
         }
         *start = data;
         return BMP_OK;
@@ -683,8 +682,6 @@ static bmp_result bmp_decode_rgb16(bmp_image *bmp, uint8_t **start, int bytes)
         }
 
         for (y = 0; y < bmp->height; y++) {
-                while (addr != (((intptr_t)data) & 3))
-                        data += 2;
                 if ((data + (2 * bmp->width)) > end)
                         return BMP_INSUFFICIENT_DATA;
                 if (bmp->reversed)
@@ -726,6 +723,8 @@ static bmp_result bmp_decode_rgb16(bmp_image *bmp, uint8_t **start, int bytes)
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
                 }
+                while (addr != (((intptr_t)data) & 3))
+                        data += 2;
         }
         *start = data;
         return BMP_OK;
@@ -775,8 +774,6 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes)
         }
 
         for (y = 0; y < bmp->height; y++) {
-                while (addr != (((intptr_t)data) & 3))
-                        data++;
                 bit = 8;
                 if ((data + (bmp->width / ppb)) > end)
                         return BMP_INSUFFICIENT_DATA;
@@ -800,6 +797,8 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes)
                                 }
                         }
                 }
+                while (addr != (((intptr_t)data) & 3))
+                        data++;
         }
         *start = data;
         return BMP_OK;
@@ -828,11 +827,10 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
                 return BMP_INSUFFICIENT_MEMORY;
         bottom = top + (uint64_t)swidth * (bmp->height - 1);
         end = data + bytes;
+
         addr = ((intptr_t)data) & 3;
 
         for (y = 0; y < bmp->height; y++) {
-                while (addr != (((intptr_t)data) & 3))
-                        data++;
                 if ((data + (bmp->width >> 3)) > end)
                         return BMP_INSUFFICIENT_DATA;
                 scanline = (void *)(bottom - (y * swidth));
@@ -848,6 +846,8 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
                         scanline[x] = read_uint32((uint8_t *)&scanline[x], 0);
                         cur_byte = cur_byte << 1;
                 }
+                while (addr != (((intptr_t)data) & 3))
+                        data++;
         }
         return BMP_OK;
 }
