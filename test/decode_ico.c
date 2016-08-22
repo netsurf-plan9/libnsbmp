@@ -29,12 +29,92 @@
 /* White with alpha masking. */
 #define TRANSPARENT_COLOR 0xffffffff
 
-unsigned char *load_file(const char *path, size_t *data_size);
-void warning(const char *context, bmp_result code);
-void *bitmap_create(int width, int height, unsigned int state);
-unsigned char *bitmap_get_buffer(void *bitmap);
-size_t bitmap_get_bpp(void *bitmap);
-void bitmap_destroy(void *bitmap);
+static void *bitmap_create(int width, int height, unsigned int state)
+{
+        (void) state;  /* unused */
+        return calloc(width * height, BYTES_PER_PIXEL);
+}
+
+
+static unsigned char *bitmap_get_buffer(void *bitmap)
+{
+        assert(bitmap);
+        return bitmap;
+}
+
+
+static size_t bitmap_get_bpp(void *bitmap)
+{
+        (void) bitmap;  /* unused */
+        return BYTES_PER_PIXEL;
+}
+
+
+static void bitmap_destroy(void *bitmap)
+{
+        assert(bitmap);
+        free(bitmap);
+}
+
+static unsigned char *load_file(const char *path, size_t *data_size)
+{
+        FILE *fd;
+        struct stat sb;
+        unsigned char *buffer;
+        size_t size;
+        size_t n;
+
+        fd = fopen(path, "rb");
+        if (!fd) {
+                perror(path);
+                exit(EXIT_FAILURE);
+        }
+
+        if (stat(path, &sb)) {
+                perror(path);
+                exit(EXIT_FAILURE);
+        }
+        size = sb.st_size;
+
+        buffer = malloc(size);
+        if (!buffer) {
+                fprintf(stderr, "Unable to allocate %lld bytes\n",
+                        (long long) size);
+                exit(EXIT_FAILURE);
+        }
+
+        n = fread(buffer, 1, size, fd);
+        if (n != size) {
+                perror(path);
+                exit(EXIT_FAILURE);
+        }
+
+        fclose(fd);
+
+        *data_size = size;
+        return buffer;
+}
+
+
+static void warning(const char *context, bmp_result code)
+{
+        fprintf(stderr, "%s failed: ", context);
+        switch (code) {
+        case BMP_INSUFFICIENT_MEMORY:
+                fprintf(stderr, "BMP_INSUFFICIENT_MEMORY");
+                break;
+        case BMP_INSUFFICIENT_DATA:
+                fprintf(stderr, "BMP_INSUFFICIENT_DATA");
+                break;
+        case BMP_DATA_ERROR:
+                fprintf(stderr, "BMP_DATA_ERROR");
+                break;
+        default:
+                fprintf(stderr, "unknown code %i", code);
+                break;
+        }
+        fprintf(stderr, "\n");
+}
 
 
 static void write_pam(FILE* fh, const char *name, struct bmp_image *bmp)
@@ -104,13 +184,22 @@ int main(int argc, char *argv[])
         size_t size;
         unsigned short res = 0;
         unsigned char *data;
+        FILE *outf = stdout;
 
-        if ((argc < 2) || (argc > 4)) {
-                fprintf(stderr, "Usage: %s collection.ico [width=255] [height=255]\n", argv[0]);
+        if ((argc < 2) || (argc > 5)) {
+                fprintf(stderr, "Usage: %s collection.ico [width=255] [height=255] [outfile]\n", argv[0]);
                 return 1;
         }
         width = (argc >= 3) ?  atoi(argv[2]) : 255;
-        height = (argc == 4) ? atoi(argv[3]) : 255;
+        height = (argc >= 4) ? atoi(argv[3]) : 255;
+
+        if (argc >= 5) {
+                outf = fopen(argv[4], "w+");
+                if (outf == NULL) {
+                        fprintf(stderr, "Unable to open %s for writing\n", argv[2]);
+                        return 2;
+                }
+        }
 
         /* create our bmp image */
         ico_collection_create(&ico, &bitmap_callbacks);
@@ -122,7 +211,7 @@ int main(int argc, char *argv[])
         code = ico_analyse(&ico, size, data);
         if (code != BMP_OK) {
                 warning("ico_analyse", code);
-                res = 1;
+                res = 3;
                 goto cleanup;
         }
 
@@ -149,9 +238,13 @@ int main(int argc, char *argv[])
         }
 
         if (bmp->opaque) {
-                write_ppm(stdout, argv[1], bmp);
+                write_ppm(outf, argv[1], bmp);
         } else {
-                write_pam(stdout, argv[1], bmp);
+                write_pam(outf, argv[1], bmp);
+        }
+
+        if (argc >= 5) {
+                fclose(outf);
         }
 
 cleanup:
@@ -160,93 +253,4 @@ cleanup:
         free(data);
 
         return res;
-}
-
-
-unsigned char *load_file(const char *path, size_t *data_size)
-{
-        FILE *fd;
-        struct stat sb;
-        unsigned char *buffer;
-        size_t size;
-        size_t n;
-
-        fd = fopen(path, "rb");
-        if (!fd) {
-                perror(path);
-                exit(EXIT_FAILURE);
-        }
-
-        if (stat(path, &sb)) {
-                perror(path);
-                exit(EXIT_FAILURE);
-        }
-        size = sb.st_size;
-
-        buffer = malloc(size);
-        if (!buffer) {
-                fprintf(stderr, "Unable to allocate %lld bytes\n",
-                        (long long) size);
-                exit(EXIT_FAILURE);
-        }
-
-        n = fread(buffer, 1, size, fd);
-        if (n != size) {
-                perror(path);
-                exit(EXIT_FAILURE);
-        }
-
-        fclose(fd);
-
-        *data_size = size;
-        return buffer;
-}
-
-
-void warning(const char *context, bmp_result code)
-{
-        fprintf(stderr, "%s failed: ", context);
-        switch (code) {
-        case BMP_INSUFFICIENT_MEMORY:
-                fprintf(stderr, "BMP_INSUFFICIENT_MEMORY");
-                break;
-        case BMP_INSUFFICIENT_DATA:
-                fprintf(stderr, "BMP_INSUFFICIENT_DATA");
-                break;
-        case BMP_DATA_ERROR:
-                fprintf(stderr, "BMP_DATA_ERROR");
-                break;
-        default:
-                fprintf(stderr, "unknown code %i", code);
-                break;
-        }
-        fprintf(stderr, "\n");
-}
-
-
-void *bitmap_create(int width, int height, unsigned int state)
-{
-        (void) state;  /* unused */
-        return calloc(width * height, BYTES_PER_PIXEL);
-}
-
-
-unsigned char *bitmap_get_buffer(void *bitmap)
-{
-        assert(bitmap);
-        return bitmap;
-}
-
-
-size_t bitmap_get_bpp(void *bitmap)
-{
-        (void) bitmap;  /* unused */
-        return BYTES_PER_PIXEL;
-}
-
-
-void bitmap_destroy(void *bitmap)
-{
-        assert(bitmap);
-        free(bitmap);
 }

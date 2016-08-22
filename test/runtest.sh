@@ -24,14 +24,14 @@ BMPTESTS="${BMPTESTS} test/afl-bmp/*.bmp"
 # icon test directories
 ICOTESTS="test/icons/*.ico"
 
-# afl ico suite
+# afl ico demo suite
 ICOTESTS="${ICOTESTS} test/afl-ico/*.ico"
 
 bmpdecode()
 {
     OUTF=$(basename ${1} .bmp)
     echo "Bitmap:${1}" >> ${TEST_LOG}
-    ${TEST_PATH}/test_decode_bmp ${1} > ${TEST_OUT}/${OUTF}.ppm 2>> ${TEST_LOG}
+    ${TEST_PATH}/test_decode_bmp ${1} ${TEST_OUT}/${OUTF}.ppm 2>> ${TEST_LOG}
     ECODE=$?
     echo "Exit code:${ECODE}" >> ${TEST_LOG}
     return ${ECODE}
@@ -42,7 +42,7 @@ icodecode()
     OUTF=$(basename ${1} .ico)
     CMPF=$(dirname  ${1})/${OUTF}.ppm
     echo "Icon:${1}" >> ${TEST_LOG}
-    ${TEST_PATH}/test_decode_ico ${1} > ${TEST_OUT}/${OUTF}.ppm 2>> ${TEST_LOG}
+    ${TEST_PATH}/test_decode_ico ${1} 255 255 ${TEST_OUT}/${OUTF}.ppm 2>> ${TEST_LOG}
     if [ -f "${CMPF}" ]; then
 	cmp ${CMPF} ${TEST_OUT}/${OUTF}.ppm >> ${TEST_LOG} 2>> ${TEST_LOG}
 	if [ "$?" -ne 0 ]; then
