@@ -37,10 +37,13 @@
 /* squashes unused variable compiler warnings */
 #define UNUSED(x) ((x)=(x))
 
-/* BMP flags */
+/* BMP entry sizes */
 #define BMP_FILE_HEADER_SIZE 14
 #define ICO_FILE_HEADER_SIZE 6
 #define ICO_DIR_ENTRY_SIZE 16
+
+/* the bitmap information header types (encoded as lengths) */
+#define BITMAPCOREHEADER 12
 
 #ifdef WE_NEED_INT8_READING_NOW
 static inline int8_t read_int8(uint8_t *data, unsigned int o) {
@@ -81,15 +84,22 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
         uint8_t palette_size;
         unsigned int flags = 0;
 
-        /* a variety of different bitmap headers can follow, depending
-         * on the BMP variant. A full description of the various headers
-         * can be found at
-         * http://msdn.microsoft.com/en-us/library/ms532301(VS.85).aspx
-         */
-        header_size = read_uint32(data, 0);
-        if (bmp->buffer_size < (14 + header_size))
+        /* must be at least enough data for a core header */
+        if (bmp->buffer_size < (BMP_FILE_HEADER_SIZE + BITMAPCOREHEADER)) {
                 return BMP_INSUFFICIENT_DATA;
-        if (header_size == 12) {
+        }
+
+        header_size = read_uint32(data, 0);
+
+        /* ensure there is enough data for the declared header size*/
+        if ((bmp->buffer_size - BMP_FILE_HEADER_SIZE) < header_size) {
+                return BMP_INSUFFICIENT_DATA;
+        }
+
+        /* a variety of different bitmap headers can follow, depending
+         * on the BMP variant. The header length field determines the type.
+         */
+        if (header_size == BITMAPCOREHEADER) {
                 /* the following header is for os/2 and windows 2.x and consists of:
                  *
                  *	+0	UINT32	size of this header (in bytes)
