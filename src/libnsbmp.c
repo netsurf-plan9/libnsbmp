@@ -180,7 +180,11 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                         return BMP_DATA_ERROR;
                 if (height < 0) {
                         bmp->reversed = true;
-                        height = -height;
+                        if (height <= -INT32_MAX) {
+                                height = INT32_MAX;
+                        } else {
+                                height = -height;
+                        }
                 }
                 /* ICOs only support 256*256 resolutions
                  * In the case of the ICO header, the height is actually the added
