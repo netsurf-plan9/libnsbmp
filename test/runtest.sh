@@ -27,6 +27,9 @@ ICOTESTS="test/icons/*.ico"
 # afl ico demo suite
 ICOTESTS="${ICOTESTS} test/afl-ico/*.ico"
 
+# netsurf afl generated icon corpus
+ICOTESTS="${ICOTESTS} test/ns-afl-ico/*.ico"
+
 bmpdecode()
 {
     OUTF=$(basename ${1} .bmp)
