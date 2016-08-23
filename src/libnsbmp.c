@@ -512,7 +512,6 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
         uint32_t *scanline;
         uint32_t x, y;
         uint32_t swidth;
-        intptr_t addr;
         uint8_t i;
         uint32_t word;
 
@@ -525,7 +524,6 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
                 return BMP_INSUFFICIENT_MEMORY;
         bottom = top + (uint64_t)swidth * (bmp->height - 1);
         end = data + bytes;
-        addr = ((intptr_t)data) & 3;
         bmp->decoded = true;
 
         /* Determine transparent index */
@@ -574,8 +572,6 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
                 }
-                while (addr != (((intptr_t)data) & 3))
-                        data++;
         }
         *start = data;
         return BMP_OK;
