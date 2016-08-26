@@ -21,6 +21,9 @@ BMPTESTS="${BMPTESTS} test/bmp/*.bmp"
 # afl bitmap suite
 BMPTESTS="${BMPTESTS} test/afl-bmp/*.bmp"
 
+# netsurf afl generated bitmap suite
+BMPTESTS="${BMPTESTS} test/ns-afl-bmp/*.bmp"
+
 # icon test directories
 ICOTESTS="test/icons/*.ico"
 
