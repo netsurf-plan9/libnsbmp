@@ -64,11 +64,17 @@ static inline uint16_t read_uint16(uint8_t *data, unsigned int o) {
 }
 
 static inline int32_t read_int32(uint8_t *data, unsigned int o) {
-        return (int32_t) (data[o] | (data[o+1] << 8) | (data[o+2] << 16) | (data[o+3] << 24));
+        return (int32_t) ((unsigned)data[o] |
+			  ((unsigned)data[o+1] << 8) |
+			  ((unsigned)data[o+2] << 16) |
+			  ((unsigned)data[o+3] << 24));
 }
 
 static inline uint32_t read_uint32(uint8_t *data, unsigned int o) {
-        return (uint32_t) (data[o] | (data[o+1] << 8) | (data[o+2] << 16) | (data[o+3] << 24));
+        return (uint32_t) ((unsigned)data[o] |
+                           ((unsigned)data[o+1] << 8) |
+                           ((unsigned)data[o+2] << 16) |
+                           ((unsigned)data[o+3] << 24));
 }
 
 
@@ -147,7 +153,8 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                     (bmp->bpp != 24) &&
                     (bmp->bpp != 32))
                         return BMP_DATA_ERROR;
-                bmp->colours = (1 << bmp->bpp);
+                if (bmp->bpp < 16)
+                        bmp->colours = (1 << bmp->bpp);
                 palette_size = 3;
         } else if (header_size < 40) {
                 return BMP_DATA_ERROR;
@@ -265,6 +272,8 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                                 for (i = 0; i < 3; i++)
                                         bmp->mask[i] = read_uint32(data, 40 + (i << 2));
                         } else {
+                                if (header_size < 56)
+                                        return BMP_INSUFFICIENT_DATA;
                                 for (i = 0; i < 4; i++)
                                         bmp->mask[i] = read_uint32(data, 40 + (i << 2));
                         }
@@ -272,9 +281,9 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                                 if (bmp->mask[i] == 0)
                                         break;
                                 for (j = 31; j > 0; j--)
-                                        if (bmp->mask[i] & (1 << j)) {
+                                        if (bmp->mask[i] & ((unsigned)1 << j)) {
                                                 if ((j - 7) > 0)
-                                                        bmp->mask[i] &= 0xff << (j - 7);
+                                                        bmp->mask[i] &= (unsigned)0xff << (j - 7);
                                                 else
                                                         bmp->mask[i] &= 0xff >> (-(j - 7));
                                                 bmp->shift[i] = (i << 3) - (j - 7);
@@ -283,7 +292,7 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                         }
                 }
                 bmp->colours = read_uint32(data, 32);
-                if (bmp->colours == 0)
+                if (bmp->colours == 0 && bmp->bpp < 16)
                         bmp->colours = (1 << bmp->bpp);
                 palette_size = 4;
         }
@@ -318,7 +327,7 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                 for (i = 0; i < bmp->colours; i++) {
                         bmp->colour_table[i] = data[2] | (data[1] << 8) | (data[0] << 16);
                         if (bmp->opaque)
-                                bmp->colour_table[i] |= (0xff << 24);
+                                bmp->colour_table[i] |= ((uint32_t)0xff << 24);
                         data += palette_size;
                         bmp->colour_table[i] = read_uint32((uint8_t *)&bmp->colour_table[i],0);
                 }
@@ -465,6 +474,9 @@ static bmp_result ico_header_parse(ico_collection *ico, uint8_t *data)
                         image->bmp.height = 256;
                 image->bmp.buffer_size = read_uint32(data, 8);
                 image->bmp.bmp_data = ico->ico_data + read_uint32(data, 12);
+                if (image->bmp.bmp_data + image->bmp.buffer_size >
+                    ico->ico_data + ico->buffer_size)
+                        return BMP_INSUFFICIENT_DATA;
                 image->bmp.ico = true;
                 data += ICO_DIR_ENTRY_SIZE;
 
@@ -553,7 +565,7 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
                                                 scanline[x] |= ((word & bmp->mask[i]) >> (-bmp->shift[i]));
                                 /* 32-bit BMPs have alpha masks, but sometimes they're not utilized */
                                 if (bmp->opaque)
-                                        scanline[x] |= (0xff << 24);
+                                        scanline[x] |= ((unsigned)0xff << 24);
                                 data += 4;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
@@ -564,9 +576,9 @@ static bmp_result bmp_decode_rgb32(bmp_image *bmp, uint8_t **start, int bytes)
                                         scanline[x] = bmp->trans_colour;
                                 }
                                 if (bmp->opaque) {
-                                        scanline[x] |= (0xff << 24);
+                                        scanline[x] |= ((unsigned)0xff << 24);
                                 } else {
-                                        scanline[x] |= data[3] << 24;
+                                        scanline[x] |= (unsigned)data[3] << 24;
                                 }
                                 data += 4;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
@@ -636,7 +648,7 @@ static bmp_result bmp_decode_rgb24(bmp_image *bmp, uint8_t **start, int bytes)
                         if ((bmp->limited_trans) && (scanline[x] == bmp->transparent_index)) {
                                 scanline[x] = bmp->trans_colour;
                         } else {
-                                scanline[x] |= (0xff << 24);
+                                scanline[x] |= ((uint32_t)0xff << 24);
                         }
                         data += 3;
                         scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
@@ -707,7 +719,7 @@ static bmp_result bmp_decode_rgb16(bmp_image *bmp, uint8_t **start, int bytes)
                                                 else
                                                         scanline[x] |= ((word & bmp->mask[i]) >> (-bmp->shift[i]));
                                         if (bmp->opaque)
-                                                scanline[x] |= (0xff << 24);
+                                                scanline[x] |= ((unsigned)0xff << 24);
                                 }
                                 data += 2;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
@@ -724,7 +736,7 @@ static bmp_result bmp_decode_rgb16(bmp_image *bmp, uint8_t **start, int bytes)
                                                       ((word & (31 << 10)) >> 7);
                                 }
                                 if (bmp->opaque)
-                                        scanline[x] |= (0xff << 24);
+                                        scanline[x] |= ((unsigned)0xff << 24);
                                 data += 2;
                                 scanline[x] = read_uint32((uint8_t *)&scanline[x],0);
                         }
@@ -781,7 +793,7 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes)
 
         for (y = 0; y < bmp->height; y++) {
                 bit = 8;
-                if ((data + (bmp->width / ppb)) > end)
+                if ((data + ((bmp->width + ppb - 1) / ppb)) > end)
                         return BMP_INSUFFICIENT_DATA;
                 if (bmp->reversed)
                         scanline = (void *)(top + (y * swidth));
@@ -845,7 +857,7 @@ static bmp_result bmp_decode_mask(bmp_image *bmp, uint8_t *data, int bytes)
                                 cur_byte = *data++;
                         scanline[x] = read_uint32((uint8_t *)&scanline[x], 0);
                         if ((cur_byte & 128) == 0) {
-                                scanline[x] |= (0xff << 24);
+                                scanline[x] |= ((unsigned)0xff << 24);
                         } else {
                                 scanline[x] &= 0xffffff;
                         }
