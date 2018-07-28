@@ -67,7 +67,7 @@ for BMP in $(ls ${BMPTESTS});do
     BMPTESTTOTC=$((BMPTESTTOTC+1))
     bmpdecode ${BMP}
     ECODE=$?
-    if [ "${ECODE}" -gt 127 ];then
+    if [ \( "${ECODE}" -gt 127 \) -o \( "${ECODE}" -eq 1 \) ];then
 	BMPTESTERRC=$((BMPTESTERRC+1))
     else
 	BMPTESTPASSC=$((BMPTESTPASSC+1))
@@ -89,7 +89,7 @@ for ICO in $(ls ${ICOTESTS});do
     ICOTESTTOTC=$((ICOTESTTOTC+1))
     icodecode ${ICO}
     ECODE=$?
-    if [ "${ECODE}" -gt 127 ];then
+    if [ \( "${ECODE}" -gt 127 \) -o \( "${ECODE}" -eq 1 \) ];then
 	ICOTESTERRC=$((ICOTESTERRC+1))
     else
 	ICOTESTPASSC=$((ICOTESTPASSC+1))
