@@ -1,0 +1,17 @@
+</$objtype/mkfile
+
+CC=pcc
+OBJ=libnsbmp.$O
+HFILES=../include/libnsbmp.h utils/log.h
+CFLAGS=-I ../include -I . -I ../../posix/include -D_BSD_EXTENSION -D_SUSV2_SOURCE
+
+all:V:	libnsbmp.$O.a
+
+libnsbmp.$O.a: $OBJ $HFILES
+	ar rv libnsbmp.$O.a $OBJ
+
+%.$O:	%.c $HFILES
+	$CC $CFLAGS -c -o $target $stem.c
+
+clean:V:
+	rm -f $OBJ libnsbmp.$O.a
