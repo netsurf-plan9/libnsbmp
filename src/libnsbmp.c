@@ -770,6 +770,9 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes)
         uint8_t bit_mask = (1 << bmp->bpp) - 1;
         uint8_t cur_byte = 0, bit, i;
 
+        /* Belt and braces, we shouldn't get here unless this holds */
+        assert(bmp->bpp > 0 && bmp->bpp <= 8);
+
         for (i = 0; i < ppb; i++)
                 bit_shifts[i] = 8 - ((i + 1) * bmp->bpp);
 
