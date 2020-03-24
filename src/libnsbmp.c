@@ -325,11 +325,11 @@ static bmp_result bmp_info_header_parse(bmp_image *bmp, uint8_t *data)
                 if (!bmp->colour_table)
                         return BMP_INSUFFICIENT_MEMORY;
                 for (i = 0; i < bmp->colours; i++) {
-                        bmp->colour_table[i] = data[2] | (data[1] << 8) | (data[0] << 16);
+                        uint32_t colour = data[2] | (data[1] << 8) | (data[0] << 16);
                         if (bmp->opaque)
-                                bmp->colour_table[i] |= ((uint32_t)0xff << 24);
+                                colour |= ((uint32_t)0xff << 24);
                         data += palette_size;
-                        bmp->colour_table[i] = read_uint32((uint8_t *)&bmp->colour_table[i],0);
+                        bmp->colour_table[i] = read_uint32((uint8_t *)&colour,0);
                 }
 
                 /* some bitmaps have a bad offset if there is a pallete, work
@@ -769,6 +769,9 @@ static bmp_result bmp_decode_rgb(bmp_image *bmp, uint8_t **start, int bytes)
         uint8_t ppb = 8 / bmp->bpp;
         uint8_t bit_mask = (1 << bmp->bpp) - 1;
         uint8_t cur_byte = 0, bit, i;
+
+        /* Belt and braces, we shouldn't get here unless this holds */
+        assert(ppb >= 1);
 
         for (i = 0; i < ppb; i++)
                 bit_shifts[i] = 8 - ((i + 1) * bmp->bpp);
