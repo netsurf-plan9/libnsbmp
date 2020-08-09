@@ -2,11 +2,11 @@
 #
 # Makefile for libnsbmp
 #
-# Copyright 2009-2015 John-Mark Bell <jmb@netsurf-browser.org>
+# Copyright 2009-2020 John-Mark Bell <jmb@netsurf-browser.org>
 
 # Component settings
 COMPONENT := nsbmp
-COMPONENT_VERSION := 0.1.5
+COMPONENT_VERSION := 0.1.6
 # Default to a static library
 COMPONENT_TYPE ?= lib-static
 
